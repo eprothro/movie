@@ -1059,7 +1059,9 @@ h1 em {
 }
 
 .steps {
+  position: relative;
   display: grid;
+  overflow: clip;
 }
 
 .step {
@@ -1076,6 +1078,16 @@ h1 em {
     opacity 0.32s ease,
     transform 0.42s cubic-bezier(0.2, 0.8, 0.2, 1),
     visibility 0s linear 0.42s;
+}
+
+/* Inactive steps stay out of flow. Otherwise the tallest one (the name form)
+   lengthens the page, and scrolling to the end pulls these controls up over
+   the fixed screen. */
+.step:not(.is-active) {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
 }
 
 .step.is-active {
