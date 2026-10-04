@@ -7,12 +7,9 @@ export const EVENT = {
   month: 10,
   day: 10,
   minutesAfterSunset: 15,
-
-  // TODO: Replace these with the backyard's real coordinates before the
-  // invite goes out. Placeholder is central Texas (near Austin) so the
-  // sunset is only roughly right until then.
-  latitude: 30.27,
-  longitude: -97.74,
+  address: "11921 County Road 152 W, Bullard, TX 75757",
+  latitude: 32.15498,
+  longitude: -95.36768,
   timezone: "America/Chicago",
 
   movies: [

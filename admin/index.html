@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Guest book · Movie night</title>
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#070910">
+  <meta name="theme-color" content="#1b2c4e">
   <meta name="color-scheme" content="dark">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="stylesheet" href="/css/site.css">
-  <style>html{background:#070910;color:#f4efe6}body{margin:0}</style>
+  <style>html{background:#1b2c4e;color:#f4efe6}body{margin:0}</style>
   <script>
     try {
       if (sessionStorage.getItem("prothro-movie-admin-pin")) {
@@ -37,8 +37,18 @@
   </div>
   <main class="wrap">
     <section class="pin-screen" id="pin-screen">
-      <p class="eyebrow">Hosts</p>
-      <h1>Guest book</h1>
+      <div class="booth" aria-hidden="true">
+        <svg viewBox="0 0 160 40">
+          <rect x="6" y="12" width="34" height="18" rx="3" fill="#f4efe6"/>
+          <rect x="12" y="8" width="12" height="6" rx="1.5" fill="#e7dccb"/>
+          <circle cx="36" cy="21" r="3" fill="#ffd7a0"/>
+          <polygon points="40,16 92,6 92,36 40,26" fill="#f0d7a4" opacity="0.38"/>
+          <circle cx="118" cy="20" r="8" fill="#f6e7c4"/>
+          <circle cx="122" cy="17" r="6" fill="#1b2c4e"/>
+        </svg>
+      </div>
+      <p class="eyebrow">Projection booth</p>
+      <h1>The booth</h1>
       <p class="lede">Evan and Julie</p>
       <div class="pin-dots" id="pin-dots" aria-hidden="true"></div>
       <p class="pin-hint" id="pin-hint">Four to eight digits</p>
@@ -63,13 +73,13 @@
       </div>
     </section>
 
-    <p id="opening" class="lede">Opening the book…</p>
+    <p id="opening" class="lede">Warming up the lamp…</p>
 
     <section class="book" id="book" hidden>
       <div class="book-head">
         <div>
-          <p class="eyebrow">Hosts</p>
-          <h2>Guest book</h2>
+          <p class="eyebrow">Projection booth</p>
+          <h2>The booth</h2>
         </div>
         <div class="book-actions">
           <button type="button" class="link" id="refresh">Refresh</button>

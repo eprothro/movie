@@ -1,5 +1,6 @@
 import { EVENT, TOKEN_KEY, movieTitle, peopleLabel } from "./config.js";
 import { eventShowtime, formatClock } from "./sunset.js";
+import { applySky } from "./sky.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -34,6 +35,10 @@ const els = {
   partyValue: $("party-value"),
   partyDec: $("party-dec"),
   partyInc: $("party-inc"),
+  chairs: $("chairs"),
+  screenKicker: $("screen-kicker"),
+  screenLine: $("screen-line"),
+  burst: $("burst"),
   statusSegment: $("status-segment"),
   honeypot: $("mx_field"),
   error: $("form-error"),
@@ -50,7 +55,17 @@ const state = {
   flags: { rsvpsOpen: true, votingOpen: true },
   editing: false,
   saving: false,
+  standings: null,
+  showtime: null,
 };
+
+let attempted = false;
+let errorCode = "";
+
+const CHAIR_COLORS = ["#f0d7a4", "#f2b8a0", "#f0d7a4", "#b7d0ea", "#f0d7a4", "#e7c1d8"];
+const MAP_ADDRESS = EVENT.address;
+const MAP_APPLE = `https://maps.apple.com/?daddr=${encodeURIComponent(MAP_ADDRESS)}&dirflg=d`;
+const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(MAP_ADDRESS)}`;
 
 const ERRORS = {
   name: "Please add a name, up to 60 characters.",
@@ -98,6 +113,8 @@ function initShowtime() {
   const label = formatClock(times.showtime, EVENT.timezone);
   els.showtime.textContent = label;
   els.showtime.dateTime = times.showtime.toISOString();
+  state.showtime = times.showtime;
+  paintWorld();
   startCountdown(times.showtime);
 }
 
@@ -117,6 +134,7 @@ function startCountdown(showtime) {
         els.cdLabel.textContent = message;
       }
       window.clearInterval(timer);
+      paintWorld();
       return;
     }
     const total = Math.floor(diff / 1000);
@@ -132,6 +150,7 @@ function startCountdown(showtime) {
     if (spoken !== lastMinuteLabel) {
       lastMinuteLabel = spoken;
       els.cdLabel.textContent = spoken;
+      paintWorld();
     }
   };
   tick();
@@ -141,23 +160,10 @@ function startCountdown(showtime) {
 function bindForm() {
   els.partyDec.addEventListener("click", () => setParty(state.partySize - 1));
   els.partyInc.addEventListener("click", () => setParty(state.partySize + 1));
-  els.form.addEventListener("change", (event) => {
-    const target = event.target;
-    if (target.name === "status") {
-      state.status = target.value;
-      if (state.status === "no") {
-        state.vote = null;
-        els.films.querySelectorAll('input[name="vote"]').forEach((input) => {
-          input.checked = false;
-        });
-      }
-      syncChrome();
-    }
-    if (target.name === "vote") {
-      state.vote = target.value;
-      syncChrome();
-    }
-  });
+  els.name.addEventListener("input", onFieldEdit);
+  els.note.addEventListener("input", onFieldEdit);
+  els.form.addEventListener("change", onFormChange);
+  els.films.addEventListener("change", onFormChange);
   els.form.addEventListener("submit", onSubmit);
   els.editBtn.addEventListener("click", () => {
     state.editing = true;
@@ -169,13 +175,120 @@ function bindForm() {
     state.editing = false;
     if (state.rsvp) showConfirm(state.rsvp, { focus: false });
   });
+  setParty(state.partySize);
+  wireDirections();
+  bindParallax();
+}
+
+function onFormChange(event) {
+  const target = event.target;
+  if (target.name === "status") {
+    state.status = target.value;
+    if (state.status === "no") {
+      state.vote = null;
+      els.films.querySelectorAll('input[name="vote"]').forEach((input) => {
+        input.checked = false;
+      });
+    }
+    syncChrome();
+  }
+  if (target.name === "vote") {
+    state.vote = target.value;
+    syncChrome();
+  }
+  onFieldEdit();
+}
+
+function prefersAppleMaps() {
+  const ua = navigator.userAgent || "";
+  const platform = navigator.platform || "";
+  const iPadOs = platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return /iPad|iPhone|iPod/.test(ua) || iPadOs;
+}
+
+function wireDirections() {
+  const apple = prefersAppleMaps();
+  const primary = apple ? MAP_APPLE : MAP_GOOGLE;
+  const alt = apple ? MAP_GOOGLE : MAP_APPLE;
+  const altLabel = apple ? "or Google Maps" : "or Apple Maps";
+  document.querySelectorAll("[data-route]").forEach((root) => {
+    const go = root.querySelector(".route-go");
+    const altLink = root.querySelector(".route-alt");
+    const address = root.querySelector(".address");
+    go.href = primary;
+    altLink.href = alt;
+    altLink.textContent = altLabel;
+    address.textContent = MAP_ADDRESS;
+    if (address.dataset.bound) return;
+    address.dataset.bound = "1";
+    address.addEventListener("click", () => {
+      const selected = window.getSelection();
+      if (selected && String(selected).trim()) return;
+      window.location.assign(primary);
+    });
+  });
+}
+
+function chairEl(index) {
+  const el = document.createElement("span");
+  el.className = "chair";
+  el.style.setProperty("--chair", CHAIR_COLORS[index % CHAIR_COLORS.length]);
+  el.innerHTML =
+    '<svg viewBox="0 0 40 34" aria-hidden="true">' +
+    '<path d="M10 32 L14 16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+    '<path d="M28 32 L18 17" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
+    '<path d="M12 17 H27" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
+    '<path d="M14 16 L16 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
+    '<path d="M23 16 L21 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
+    '<path d="M16 6.5 H21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
+    '<path d="M15 10 H22.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>' +
+    '<path d="M14.2 13.2 H23.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>' +
+    "</svg>";
+  return el;
+}
+
+function renderChairs(from) {
+  const root = els.chairs;
+  const next = state.partySize;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!root) return;
+  if (reduce || from === next) {
+    root.replaceChildren(...Array.from({ length: next }, (_, i) => chairEl(i)));
+    return;
+  }
+  if (next > from) {
+    while (root.children.length < next) {
+      const el = chairEl(root.children.length);
+      el.classList.add("pop");
+      root.append(el);
+    }
+    return;
+  }
+  while (root.children.length > next) {
+    const last = root.lastElementChild;
+    if (root.children.length === next + 1 && !reduce) {
+      last.classList.add("leave");
+      last.addEventListener("animationend", () => last.remove(), { once: true });
+      break;
+    }
+    last.remove();
+  }
+}
+
+function updateStamps() {
+  document.querySelectorAll(".admit").forEach((el) => {
+    el.textContent = String(state.partySize);
+  });
 }
 
 function setParty(next) {
+  const prev = state.partySize;
   state.partySize = Math.min(10, Math.max(1, next));
   els.partyValue.textContent = peopleLabel(state.partySize);
   els.partyDec.disabled = state.partySize <= 1;
   els.partyInc.disabled = state.partySize >= 10;
+  renderChairs(prev);
+  updateStamps();
 }
 
 function syncChrome() {
@@ -212,6 +325,7 @@ function fillForm(rsvp) {
   els.form.querySelectorAll('input[name="vote"]').forEach((input) => {
     input.checked = input.value === state.vote;
   });
+  attempted = false;
   clearError();
   syncChrome();
 }
@@ -227,9 +341,10 @@ function showForm() {
   els.closedNote.hidden = state.flags.rsvpsOpen;
   els.form.hidden = !state.flags.rsvpsOpen;
   syncChrome();
+  paintWorld();
 }
 
-function showConfirm(rsvp, { focus = true } = {}) {
+function showConfirm(rsvp, { focus = true, celebrate = false } = {}) {
   state.rsvp = rsvp;
   state.editing = false;
   document.documentElement.classList.remove("has-token");
@@ -240,6 +355,8 @@ function showConfirm(rsvp, { focus = true } = {}) {
   els.confirm.hidden = false;
   document.body.classList.add("is-set");
   document.body.dataset.vote = rsvp.vote || "";
+  paintWorld();
+  if (celebrate && rsvp.status !== "no") burst();
   const headlines = {
     yes: "See you Saturday.",
     maybe: "You're a maybe.",
@@ -261,15 +378,21 @@ function showConfirm(rsvp, { focus = true } = {}) {
     els.confirmNote.textContent = "";
   }
   els.editBtn.hidden = !state.flags.rsvpsOpen;
-  if (focus) els.confirmTitle.focus();
+  if (focus) {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+    els.confirmTitle.focus({ preventScroll: true });
+  }
 }
 
 function renderStandings(standings, myVote) {
   if (!standings) return;
+  state.standings = standings;
+  paintWorld();
   const root = els.standings;
   root.replaceChildren();
   const heading = document.createElement("h3");
-  heading.textContent = "The vote";
+  heading.textContent = "The room";
   root.append(heading);
   const votes = standings.votes || {};
   const inside = Number(votes.inside_out) || 0;
@@ -277,48 +400,48 @@ function renderStandings(standings, myVote) {
   const total = inside + mav;
   const caption = document.createElement("p");
   caption.className = "lede";
-  if (total === 0) {
-    caption.textContent = "No votes yet.";
-    root.append(caption);
-  } else {
-    caption.textContent = "One vote per group.";
-    root.append(caption);
-    const rows = [
-      ["inside_out", "Inside Out", inside],
-      ["top_gun", "Top Gun: Maverick", mav],
-    ];
-    const bars = [];
-    rows.forEach(([id, title, count]) => {
-      const meter = document.createElement("div");
-      meter.className = "meter";
-      const top = document.createElement("div");
-      top.className = "meter-top";
-      const name = document.createElement("span");
-      name.textContent = title;
-      if (id === myVote) {
-        const you = document.createElement("span");
-        you.className = "you";
-        you.textContent = "You";
-        name.append(you);
-      }
-      const num = document.createElement("b");
-      num.textContent = String(count);
-      top.append(name, num);
-      const track = document.createElement("div");
-      track.className = "track";
-      track.setAttribute("role", "presentation");
-      const bar = document.createElement("span");
-      track.append(bar);
-      meter.append(top, track);
-      root.append(meter);
-      bars.push([bar, (count / total) * 100]);
+  caption.textContent = total === 0 ? "No votes yet. Be the first tear." : "One vote per group.";
+  root.append(caption);
+  const board = document.createElement("div");
+  board.className = "buckets";
+  const rows = [
+    ["inside_out", "Inside Out", inside],
+    ["top_gun", "Top Gun: Maverick", mav],
+  ];
+  const fills = [];
+  rows.forEach(([id, title, count]) => {
+    const card = document.createElement("div");
+    card.className = "bucket-card";
+    const cup = document.createElement("div");
+    cup.className = "cup";
+    cup.setAttribute("role", "presentation");
+    const kernels = document.createElement("div");
+    kernels.className = "kernels";
+    cup.append(kernels);
+    const label = document.createElement("p");
+    label.className = "bucket-label";
+    const name = document.createElement("span");
+    name.textContent = title;
+    if (id === myVote) {
+      const you = document.createElement("span");
+      you.className = "you";
+      you.textContent = "You";
+      name.append(you);
+    }
+    const num = document.createElement("b");
+    num.textContent = String(count);
+    label.append(name, num);
+    card.append(cup, label);
+    board.append(card);
+    fills.push([kernels, total ? (count / total) * 100 : 0]);
+  });
+  root.append(board);
+  requestAnimationFrame(() => {
+    fills.forEach(([kernels, pct]) => {
+      kernels.style.height = `${Math.max(0, Math.min(78, pct * 0.78))}%`;
+      kernels.classList.toggle("is-pop", pct > 0);
     });
-    requestAnimationFrame(() => {
-      bars.forEach(([bar, width]) => {
-        bar.style.width = `${width}%`;
-      });
-    });
-  }
+  });
   const foot = document.createElement("p");
   foot.className = "headcount";
   const yes = Number(standings.yes_headcount) || 0;
@@ -333,25 +456,40 @@ function renderStandings(standings, myVote) {
 }
 
 function clearError() {
+  errorCode = "";
   els.error.hidden = true;
   els.error.textContent = "";
   els.name.removeAttribute("aria-invalid");
   els.note.removeAttribute("aria-invalid");
   els.statusSegment.classList.remove("is-invalid");
+  els.films.classList.remove("is-invalid");
 }
 
-function setError(code) {
+function setError(code, { focus = false } = {}) {
+  errorCode = code;
   els.error.hidden = false;
   els.error.textContent = ERRORS[code] || ERRORS.network;
-  if (code === "name") {
-    els.name.setAttribute("aria-invalid", "true");
-    els.name.focus();
-  } else if (code === "note") {
-    els.note.setAttribute("aria-invalid", "true");
-    els.note.focus();
-  } else if (code === "status") {
-    els.statusSegment.classList.add("is-invalid");
+  const nameBad = code === "name";
+  const noteBad = code === "note";
+  if (nameBad) els.name.setAttribute("aria-invalid", "true");
+  else els.name.removeAttribute("aria-invalid");
+  if (noteBad) els.note.setAttribute("aria-invalid", "true");
+  else els.note.removeAttribute("aria-invalid");
+  els.statusSegment.classList.toggle("is-invalid", code === "status");
+  els.films.classList.toggle("is-invalid", code === "vote");
+  if (!focus) return;
+  if (nameBad) els.name.focus();
+  else if (noteBad) els.note.focus();
+}
+
+function onFieldEdit() {
+  if (!attempted) return;
+  if (errorCode === "network" || errorCode === "rate" || errorCode === "closed" || errorCode === "not_found") {
+    return;
   }
+  const problem = validate();
+  if (problem) setError(problem);
+  else clearError();
 }
 
 function validate() {
@@ -375,12 +513,13 @@ async function onSubmit(event) {
     window.setTimeout(() => els.name.focus({ preventScroll: true }), reduce ? 0 : 280);
     return;
   }
-  clearError();
+  attempted = true;
   const problem = validate();
   if (problem) {
-    setError(problem);
+    setError(problem, { focus: true });
     return;
   }
+  clearError();
   state.saving = true;
   els.submit.disabled = true;
   els.submit.textContent = "Saving…";
@@ -411,7 +550,7 @@ async function onSubmit(event) {
       state.flags.rsvpsOpen = data.standings.rsvps_open !== false;
       state.flags.votingOpen = data.standings.voting_open !== false;
     }
-    showConfirm(data.rsvp);
+    showConfirm(data.rsvp, { celebrate: true });
     renderStandings(data.standings, data.rsvp?.vote);
   } catch (error) {
     console.error(error);
@@ -449,6 +588,7 @@ async function boot() {
 
   const standings = standingsResult.data;
   if (standings && standings.ok !== false) {
+    state.standings = standings;
     state.flags.rsvpsOpen = standings.rsvps_open !== false;
     state.flags.votingOpen = standings.voting_open !== false;
   }
@@ -466,6 +606,76 @@ async function boot() {
 
   showForm();
   if (mineResult && !mineResult.ok) setError("network");
+}
+
+function winnerTitle(standings) {
+  const votes = standings?.votes || {};
+  const inside = Number(votes.inside_out) || 0;
+  const mav = Number(votes.top_gun) || 0;
+  if (!inside && !mav) return "Movie night";
+  if (inside === mav) return "It's a tie";
+  return inside > mav ? "Inside Out" : "Top Gun: Maverick";
+}
+
+function paintWorld() {
+  const phase = applySky(state.showtime);
+  const showing = phase === "showing";
+  document.body.dataset.phase = showing ? "showing" : "waiting";
+  const rsvp = state.rsvp;
+  const starring = document.body.classList.contains("is-set") && rsvp && rsvp.status !== "no";
+  if (starring) {
+    const extra = Math.max(0, Number(rsvp.party_size) - 1);
+    els.screenKicker.textContent = "Starring";
+    els.screenLine.textContent = extra ? `${rsvp.name} + ${extra}` : rsvp.name;
+    document.body.classList.add("credits-on");
+  } else if (showing) {
+    els.screenKicker.textContent = "Now showing";
+    els.screenLine.textContent = winnerTitle(state.standings);
+    document.body.classList.add("credits-on");
+  } else if (els.screenKicker) {
+    els.screenKicker.textContent = "";
+    els.screenLine.textContent = "";
+    document.body.classList.remove("credits-on");
+  }
+}
+
+function burst() {
+  const root = els.burst;
+  if (!root) return;
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) return;
+  const colors = ["#f2c14e", "#6aa6e0", "#e07a6a", "#7dba7a", "#c9a0e0", "#f6e7a8"];
+  root.replaceChildren();
+  root.hidden = false;
+  for (let i = 0; i < 10; i += 1) {
+    const bit = document.createElement("i");
+    bit.style.setProperty("--a", `${i * 36 - 10}deg`);
+    bit.style.setProperty("--d", `${22 + (i % 4) * 9}px`);
+    bit.style.setProperty("--c", colors[i % colors.length]);
+    root.append(bit);
+  }
+  window.setTimeout(() => {
+    root.hidden = true;
+    root.replaceChildren();
+  }, 800);
+}
+
+function bindParallax() {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  let ticking = false;
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        const y = Math.min(window.scrollY, 180);
+        document.documentElement.style.setProperty("--parallax", y.toFixed(1));
+        ticking = false;
+      });
+    },
+    { passive: true },
+  );
 }
 
 function registerWorker() {

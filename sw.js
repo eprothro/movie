@@ -1,4 +1,4 @@
-const CACHE = "movie-night-v1";
+const CACHE = "movie-night-v2";
 const ASSETS = [
   "/",
   "/index.html",
@@ -7,6 +7,7 @@ const ASSETS = [
   "/css/site.css",
   "/js/config.js",
   "/js/sunset.js",
+  "/js/sky.js",
   "/js/api.js",
   "/js/app.js",
   "/js/admin.js",

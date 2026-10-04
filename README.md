@@ -13,11 +13,12 @@ The site is static. GitHub Pages serves it from the `main` branch root. The cust
    select movie_set_admin_pin('CHANGE_ME');
    ```
 
-3. In [`js/config.js`](js/config.js), replace the central-Texas placeholder latitude and longitude with the backyard. Timezone stays `America/Chicago` unless the screening moves.
-4. Turn on GitHub Pages: **Settings → Pages → Deploy from branch `main` / `(root)`**. The `CNAME` file already claims `movie.prothro.site`.
-5. DNS: a CNAME for `movie.prothro.site` pointing at `eprothro.github.io`.
+3. Turn on GitHub Pages: **Settings → Pages → Deploy from branch `main` / `(root)`**. The `CNAME` file already claims `movie.prothro.site`.
+4. DNS: a CNAME for `movie.prothro.site` pointing at `eprothro.github.io`.
 
 Until step 2, `/admin/` will say the PIN isn't set. Until step 1, saving an RSVP fails with a short "try again" message.
+
+Showtime is 15 minutes after sunset at the backyard, 32.15498, -95.36768 (`America/Chicago`). On October 10, 2026 that is **7:11 PM CT** (sunset 6:56 PM). The invite offers directions to 11921 County Road 152 W, Bullard, TX 75757. Change `js/config.js` only if the screening moves.
 
 ## Admin
 

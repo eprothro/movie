@@ -1,4 +1,6 @@
 import { EVENT, PIN_KEY, movieTitle, peopleLabel } from "./config.js";
+import { eventShowtime } from "./sunset.js";
+import { applySky } from "./sky.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -66,6 +68,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 renderDots();
+applySky(eventShowtime(EVENT)?.showtime ?? null);
 boot();
 
 function readPin() {
