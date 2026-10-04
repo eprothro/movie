@@ -553,7 +553,8 @@ a {
 }
 
 .card-line.is-long {
-  font-size: calc(7.4 * var(--s));
+  font-size: calc(6.6 * var(--s));
+  line-height: 1.02;
 }
 
 .card-sub {
@@ -1061,7 +1062,6 @@ h1 em {
 .steps {
   position: relative;
   display: grid;
-  overflow: clip;
 }
 
 .step {
@@ -1088,6 +1088,8 @@ h1 em {
   top: 0;
   left: 0;
   right: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .step.is-active {
@@ -1578,13 +1580,13 @@ input[type="text"][aria-invalid="true"] {
 }
 
 .step[data-step="confirm"] h2 {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   font-family: var(--display);
   font-variation-settings: "opsz" 96;
   font-weight: 600;
   font-size: 30px;
   letter-spacing: -0.02em;
-  line-height: 1.1;
+  line-height: 1.05;
   outline: none;
 }
 
@@ -1599,8 +1601,8 @@ input[type="text"][aria-invalid="true"] {
 }
 
 .votes {
-  margin: 20px 0 0;
-  padding: 16px 12px 14px;
+  margin: 4px 0 0;
+  padding: 12px 12px 10px;
   border-radius: 22px;
   background: rgba(10, 12, 24, 0.55);
   box-shadow: inset 0 0 0 1px var(--line);
@@ -1628,8 +1630,8 @@ input[type="text"][aria-invalid="true"] {
 
 .tub {
   position: relative;
-  width: 72px;
-  height: 100px;
+  width: 68px;
+  height: 86px;
   overflow: hidden;
 }
 

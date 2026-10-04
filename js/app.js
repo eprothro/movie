@@ -390,9 +390,10 @@ function cardFor() {
       return ["", "We'll miss you.", ""];
     case "confirm": {
       if (!r) return ["", "", ""];
-      if (r.would_attend === "none") return [`Thanks, ${firstName(r.name)}`, "Next time!", ""];
-      const extra = Math.max(0, Number(r.party_size) - 1);
-      return ["Starring", extra ? `${r.name} + ${extra}` : r.name, ""];
+      if (r.would_attend === "none") return ["", "We'll miss you.", ""];
+      const title = movieTitle(r.vote || r.would_attend);
+      const only = r.would_attend !== "both";
+      return ["Your vote", title, only ? "Only this one" : ""];
     }
     default:
       return ["", "", ""];
@@ -419,10 +420,6 @@ function paintScreen() {
   }
   els.card.classList.add("is-swapping");
   swapTimer = window.setTimeout(apply, 180);
-}
-
-function firstName(name) {
-  return String(name || "").trim().split(/\s+/)[0] || "friend";
 }
 
 function winnerTitle() {
@@ -457,13 +454,8 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
   state.editing = false;
   const coming = rsvp.would_attend !== "none";
   els.confirmTitle.textContent = coming ? "See you Saturday." : "We'll miss you.";
-  if (!coming) {
-    els.confirmSub.textContent = "";
-  } else if (rsvp.would_attend === "both") {
-    els.confirmSub.textContent = rsvp.vote ? `Voted ${movieTitle(rsvp.vote)} · in for either` : "In for either movie";
-  } else {
-    els.confirmSub.textContent = `${movieTitle(rsvp.would_attend)} only`;
-  }
+  els.confirmTitle.classList.toggle("sr-only", !coming);
+  els.confirmSub.textContent = "";
   els.heroCtaLabel.textContent = coming ? "You're in" : "Your RSVP";
   els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });
