@@ -13,7 +13,7 @@ export const EVENT = {
   timezone: "America/Chicago",
 
   movies: [
-    { id: "inside_out", title: "Inside Out", short: "Inside Out", year: "2015" },
+    { id: "princess_bride", title: "The Princess Bride", short: "Princess Bride", year: "1987" },
     { id: "top_gun", title: "Top Gun: Maverick", short: "Top Gun", year: "2022" },
   ],
 

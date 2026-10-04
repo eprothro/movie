@@ -1,12 +1,12 @@
 # Prothro Movie Night
 
-A single-page invite for Saturday, October 10, 2026. Guests RSVP and vote between **Inside Out** and **Top Gun: Maverick**. Showtime is 15 minutes after local sunset, computed in the browser.
+A single-page invite for Saturday, October 10, 2026. Guests RSVP and vote between **The Princess Bride** and **Top Gun: Maverick**. Showtime is 15 minutes after local sunset, computed in the browser.
 
 The site is static. GitHub Pages serves it from the `main` branch root. The custom domain is `movie.prothro.site` (`CNAME`).
 
 ## Before it works
 
-1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), run the whole file [`supabase/migrations/001_movie_night.sql`](supabase/migrations/001_movie_night.sql). Production already has it. It is safe to re-run, and the PIN hash is not touched.
+1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), run the whole file [`supabase/migrations/001_movie_night.sql`](supabase/migrations/001_movie_night.sql). Production already has it. It is safe to re-run, and the PIN hash is not touched. Then run [`supabase/migrations/002_princess_bride.sql`](supabase/migrations/002_princess_bride.sql), which puts The Princess Bride on the ballot and adds the reset. It is safe to re-run too.
 2. Set the host PIN (4–8 digits). This is the only place the PIN should exist. Do not commit it.
 
    ```sql
@@ -26,7 +26,7 @@ Showtime is 15 minutes after sunset at the backyard, 32.15498, -95.36768 (`Ameri
 
 Five wrong PINs lock admin calls for 10 minutes. The PIN is stored only as a bcrypt hash (`pgcrypto`). Anon cannot read `movie_settings`.
 
-The guest book lists every RSVP. Each row stores `would_attend` (`inside_out`, `top_gun`, `both`, or `none`) and `vote` (the preferred movie, or null). The public page shows vote counts. The booth also shows projected headcount: people who would come if that movie plays, counting anyone marked for that movie or for both. Hosts can remove an entry and close or reopen RSVPs and voting.
+The guest book lists every RSVP. Each row stores `would_attend` (`princess_bride`, `top_gun`, `both`, or `none`) and `vote` (the preferred movie, or null). Hosts can reset the book, which deletes every RSVP and vote. The public page shows vote counts. The booth also shows projected headcount: people who would come if that movie plays, counting anyone marked for that movie or for both. Hosts can remove an entry and close or reopen RSVPs and voting.
 
 ## How RSVPs are stored
 
@@ -39,6 +39,7 @@ Row level security is on, with no policies, and table privileges are revoked fro
 | `movie_get_standings` | anyone | Vote counts. No names, no per-movie headcount. |
 | `movie_admin_overview` | hosts | Full list. Requires the PIN. |
 | `movie_admin_delete` | hosts | Remove one RSVP. |
+| `movie_admin_reset` | hosts | Delete every RSVP and vote. Requires the PIN. |
 | `movie_admin_set_open` | hosts | Open or close RSVPs and voting. |
 | `movie_set_admin_pin` | SQL editor only | Not granted to anon. |
 

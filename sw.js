@@ -1,4 +1,4 @@
-const CACHE = "movie-night-v13";
+const CACHE = "movie-night-v14";
 const ASSETS = [
   "/",
   "/index.html",
@@ -23,8 +23,8 @@ const ASSETS = [
   "/assets/scene/fence.svg",
   "/assets/scene/grass.svg",
   "/assets/scene/meadow.svg",
-  "/assets/posters/inside-out.webp",
-  "/assets/posters/inside-out-2x.webp",
+  "/assets/posters/princess-bride.webp",
+  "/assets/posters/princess-bride-2x.webp",
   "/assets/posters/top-gun-maverick.webp",
   "/assets/posters/top-gun-maverick-2x.webp",
   "/favicon.svg",

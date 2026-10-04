@@ -78,6 +78,14 @@
 
       <h3 class="list-head">Guests <span id="guest-count"></span></h3>
       <div id="guest-list" class="guests"></div>
+
+      <div class="reset">
+        <p class="reset-note" id="reset-note" hidden>This deletes every RSVP and vote.</p>
+        <div class="reset-actions">
+          <button type="button" class="chip danger" id="reset">Reset votes</button>
+          <button type="button" class="chip" id="reset-cancel" hidden>Cancel</button>
+        </div>
+      </div>
     </section>
   </main>
   <script type="module" src="/js/admin.js"></script>

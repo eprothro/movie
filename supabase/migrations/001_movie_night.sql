@@ -84,12 +84,12 @@ create table if not exists public.movie_rsvps (
   updated_at timestamptz not null default now(),
   constraint movie_rsvps_name_len check (char_length(name) between 1 and 60),
   constraint movie_rsvps_party_chk check (party_size between 1 and 10),
-  constraint movie_rsvps_attend_chk check (would_attend in ('inside_out', 'top_gun', 'both', 'none')),
-  constraint movie_rsvps_vote_chk check (vote is null or vote in ('inside_out', 'top_gun')),
+  constraint movie_rsvps_attend_chk check (would_attend in ('princess_bride', 'top_gun', 'both', 'none')),
+  constraint movie_rsvps_vote_chk check (vote is null or vote in ('princess_bride', 'top_gun')),
   constraint movie_rsvps_attend_vote_chk check (
     (would_attend = 'none' and vote is null)
-    or (would_attend = 'both' and (vote is null or vote in ('inside_out', 'top_gun')))
-    or (would_attend in ('inside_out', 'top_gun') and vote = would_attend)
+    or (would_attend = 'both' and (vote is null or vote in ('princess_bride', 'top_gun')))
+    or (would_attend in ('princess_bride', 'top_gun') and vote = would_attend)
   ),
   constraint movie_rsvps_note_len check (note is null or char_length(note) <= 240)
 );
@@ -130,7 +130,8 @@ begin
     update public.movie_rsvps
       set would_attend = case
         when status = 'no' then 'none'
-        when vote in ('inside_out', 'top_gun') then vote
+        when vote = 'inside_out' then 'princess_bride'
+        when vote in ('princess_bride', 'top_gun') then vote
         else 'both'
       end
     where would_attend is null;
@@ -141,6 +142,15 @@ $upgrade$;
 update public.movie_rsvps
   set would_attend = 'both'
 where would_attend is null;
+
+-- Inside Out was the first ballot. Those RSVPs count for The Princess Bride.
+update public.movie_rsvps
+  set would_attend = 'princess_bride'
+where would_attend = 'inside_out';
+
+update public.movie_rsvps
+  set vote = 'princess_bride'
+where vote = 'inside_out';
 
 alter table public.movie_rsvps drop constraint if exists movie_rsvps_status_chk;
 alter table public.movie_rsvps drop constraint if exists movie_rsvps_no_vote_chk;
@@ -154,18 +164,18 @@ alter table public.movie_rsvps alter column would_attend set not null;
 
 alter table public.movie_rsvps
   add constraint movie_rsvps_attend_chk
-  check (would_attend in ('inside_out', 'top_gun', 'both', 'none'));
+  check (would_attend in ('princess_bride', 'top_gun', 'both', 'none'));
 
 alter table public.movie_rsvps
   add constraint movie_rsvps_vote_chk
-  check (vote is null or vote in ('inside_out', 'top_gun'));
+  check (vote is null or vote in ('princess_bride', 'top_gun'));
 
 alter table public.movie_rsvps
   add constraint movie_rsvps_attend_vote_chk
   check (
     (would_attend = 'none' and vote is null)
-    or (would_attend = 'both' and (vote is null or vote in ('inside_out', 'top_gun')))
-    or (would_attend in ('inside_out', 'top_gun') and vote = would_attend)
+    or (would_attend = 'both' and (vote is null or vote in ('princess_bride', 'top_gun')))
+    or (would_attend in ('princess_bride', 'top_gun') and vote = would_attend)
   );
 
 alter table public.movie_rsvps enable row level security;
@@ -261,11 +271,11 @@ set search_path = public, pg_catalog
 as $$
   select jsonb_build_object(
     'coming', coalesce(sum(party_size) filter (where would_attend <> 'none'), 0),
-    'if_inside_out', coalesce(sum(party_size) filter (where would_attend in ('inside_out', 'both')), 0),
+    'if_princess_bride', coalesce(sum(party_size) filter (where would_attend in ('princess_bride', 'both')), 0),
     'if_top_gun', coalesce(sum(party_size) filter (where would_attend in ('top_gun', 'both')), 0),
     'none_parties', coalesce(count(*) filter (where would_attend = 'none'), 0),
     'votes', jsonb_build_object(
-      'inside_out', coalesce(count(*) filter (where vote = 'inside_out'), 0),
+      'princess_bride', coalesce(count(*) filter (where vote = 'princess_bride'), 0),
       'top_gun', coalesce(count(*) filter (where vote = 'top_gun'), 0)
     ),
     'rsvps_open', coalesce((select rsvps_open from public.movie_settings where id = 1), true),
@@ -345,7 +355,7 @@ set search_path = public, pg_catalog
 as $$
   select (
     movie_private.standings()
-    - 'if_inside_out'
+    - 'if_princess_bride'
     - 'if_top_gun'
     - 'none_parties'
   ) || jsonb_build_object('ok', true);
@@ -428,12 +438,12 @@ begin
       'rsvp', jsonb_build_object(
         'name', 'Guest',
         'party_size', 1,
-        'would_attend', 'inside_out',
-        'vote', 'inside_out',
+        'would_attend', 'princess_bride',
+        'vote', 'princess_bride',
         'note', null
       ),
       'standings', (
-        movie_private.standings() - 'if_inside_out' - 'if_top_gun' - 'none_parties'
+        movie_private.standings() - 'if_princess_bride' - 'if_top_gun' - 'none_parties'
       ) || jsonb_build_object('ok', true)
     );
   end if;
@@ -457,7 +467,7 @@ begin
   end if;
 
   v_attend := lower(btrim(coalesce(p_would_attend, '')));
-  if v_attend not in ('inside_out', 'top_gun', 'both', 'none') then
+  if v_attend not in ('princess_bride', 'top_gun', 'both', 'none') then
     return jsonb_build_object('ok', false, 'error', 'attend');
   end if;
 
@@ -470,7 +480,7 @@ begin
   end if;
 
   v_vote := nullif(lower(btrim(coalesce(p_vote, ''))), '');
-  if v_vote is not null and v_vote not in ('inside_out', 'top_gun') then
+  if v_vote is not null and v_vote not in ('princess_bride', 'top_gun') then
     return jsonb_build_object('ok', false, 'error', 'vote');
   end if;
 
@@ -486,11 +496,11 @@ begin
 
   if v_attend = 'none' then
     v_vote := null;
-  elsif v_attend in ('inside_out', 'top_gun') then
+  elsif v_attend in ('princess_bride', 'top_gun') then
     v_vote := v_attend;
   elsif coalesce(v_voting_open, true) is not true then
     v_vote := case when v_id is not null then v_existing_vote else null end;
-  elsif v_vote is null or v_vote not in ('inside_out', 'top_gun') then
+  elsif v_vote is null or v_vote not in ('princess_bride', 'top_gun') then
     return jsonb_build_object('ok', false, 'error', 'vote');
   end if;
 
@@ -517,7 +527,7 @@ begin
     'note', v_note
   );
   v_standings := (
-    movie_private.standings() - 'if_inside_out' - 'if_top_gun' - 'none_parties'
+    movie_private.standings() - 'if_princess_bride' - 'if_top_gun' - 'none_parties'
   ) || jsonb_build_object('ok', true);
 
   return jsonb_build_object(
@@ -630,6 +640,27 @@ begin
 end;
 $$;
 
+drop function if exists public.movie_admin_reset(text);
+
+create or replace function public.movie_admin_reset(p_pin text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_catalog
+as $$
+declare
+  v_err jsonb;
+begin
+  v_err := movie_private.check_pin(p_pin);
+  if v_err ->> 'ok' <> 'true' then
+    return v_err;
+  end if;
+
+  delete from public.movie_rsvps;
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
 -- Not granted to anon. Run it yourself from the SQL editor as postgres.
 drop function if exists public.movie_set_admin_pin(text);
 
@@ -663,6 +694,7 @@ revoke all on function public.movie_submit_rsvp(text, integer, text, text, text,
 revoke all on function public.movie_admin_overview(text) from public;
 revoke all on function public.movie_admin_delete(text, text) from public;
 revoke all on function public.movie_admin_set_open(text, boolean, boolean) from public;
+revoke all on function public.movie_admin_reset(text) from public;
 revoke all on function public.movie_set_admin_pin(text) from public;
 
 grant execute on function public.movie_get_standings() to anon, authenticated;
@@ -671,6 +703,7 @@ grant execute on function public.movie_submit_rsvp(text, integer, text, text, te
 grant execute on function public.movie_admin_overview(text) to anon, authenticated;
 grant execute on function public.movie_admin_delete(text, text) to anon, authenticated;
 grant execute on function public.movie_admin_set_open(text, boolean, boolean) to anon, authenticated;
+grant execute on function public.movie_admin_reset(text) to anon, authenticated;
 
 comment on function public.movie_submit_rsvp(text, integer, text, text, text, text, text) is
   'Create or update an RSVP. Returns an edit token. Update requires that token.';
@@ -678,6 +711,8 @@ comment on function public.movie_get_standings() is
   'Public vote totals and headcount. No names.';
 comment on function public.movie_get_rsvp(text) is
   'The caller''s own RSVP, looked up by edit token.';
+comment on function public.movie_admin_reset(text) is
+  'Delete every RSVP and vote. Requires the admin PIN.';
 comment on function public.movie_set_admin_pin(text) is
   'Set the bcrypt admin PIN. Not callable by anon. Run from the SQL editor.';
 

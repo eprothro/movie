@@ -319,7 +319,7 @@ function markAlso() {
 }
 
 function otherMovie(id) {
-  return id === "inside_out" ? "top_gun" : "inside_out";
+  return EVENT.movies.find((movie) => movie.id !== id)?.id || EVENT.movies[0].id;
 }
 
 function beginEdit() {
@@ -327,7 +327,7 @@ function beginEdit() {
   if (!rsvp || !state.flags.rsvpsOpen) return;
   state.editing = true;
   const attend = rsvp.would_attend;
-  state.pick = rsvp.vote || (attend === "inside_out" || attend === "top_gun" ? attend : null);
+  state.pick = rsvp.vote || (EVENT.movies.some((movie) => movie.id === attend) ? attend : null);
   state.also = attend === "both" ? "yes" : attend === "none" ? null : "no";
   els.name.value = rsvp.name || "";
   els.cantName.value = rsvp.name || "";
@@ -438,10 +438,9 @@ function paintScreen() {
 
 function winnerTitle() {
   const v = state.standings?.votes || {};
-  const io = Number(v.inside_out) || 0;
-  const tg = Number(v.top_gun) || 0;
-  if (io === tg) return "Movie Night";
-  return io > tg ? "Inside Out" : "Top Gun: Maverick";
+  const ranked = EVENT.movies.map((movie) => ({ movie, votes: Number(v[movie.id]) || 0 }));
+  if (ranked[0].votes === ranked[1].votes) return "Movie Night";
+  return (ranked[0].votes > ranked[1].votes ? ranked[0] : ranked[1]).movie.title;
 }
 
 function popcorn() {
@@ -479,8 +478,8 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
 
 function renderVotes() {
   const v = state.standings?.votes || {};
-  const counts = { inside_out: Number(v.inside_out) || 0, top_gun: Number(v.top_gun) || 0 };
-  const max = Math.max(counts.inside_out, counts.top_gun, 1);
+  const counts = Object.fromEntries(EVENT.movies.map((movie) => [movie.id, Number(v[movie.id]) || 0]));
+  const max = Math.max(...Object.values(counts), 1);
   const mine = state.rsvp?.vote || null;
   els.votes.querySelectorAll(".bucket").forEach((bucket) => {
     const id = bucket.dataset.movie;
@@ -495,7 +494,7 @@ function renderVotes() {
   });
   els.votes.setAttribute(
     "aria-label",
-    `Votes so far: Inside Out ${counts.inside_out}, Top Gun: Maverick ${counts.top_gun}.`,
+    `Votes so far: ${EVENT.movies.map((movie) => `${movie.title} ${counts[movie.id]}`).join(", ")}.`,
   );
 }
 
