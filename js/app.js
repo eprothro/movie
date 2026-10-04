@@ -492,7 +492,9 @@ function cardFor() {
     case "confirm": {
       if (!r) return ["", "", ""];
       if (r.would_attend === "none") return ["", "We'll see you next time!", ""];
-      return ["Your vote", movieTitle(r.vote || r.would_attend), ""];
+      const title = movieTitle(r.vote || r.would_attend);
+      if (r.would_attend !== "both") return ["", "See you Saturday", `if ${title} wins`];
+      return ["Your vote", title, ""];
     }
     default:
       return ["", "", ""];
@@ -509,6 +511,7 @@ function paintScreen() {
     els.kicker.textContent = kicker;
     els.line.textContent = line;
     els.line.classList.toggle("is-long", line.length > 14);
+    els.card.classList.toggle("is-conditional", line === "See you Saturday" && sub.startsWith("if "));
     els.sub.textContent = sub;
     els.card.classList.remove("is-swapping");
   };
@@ -553,14 +556,16 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
   scene.skipLeader();
   const coming = rsvp.would_attend !== "none";
   const definite = rsvp.would_attend === "both";
+  const title = movieTitle(rsvp.vote || rsvp.would_attend);
   els.confirmTitle.textContent = !coming
     ? "We'll see you next time!"
     : definite
       ? "See you Saturday."
-      : "See you Saturday if it wins.";
-  // Can't-make-it already says it on the screen. A coming guest, conditional
-  // or not, gets the heading under the screen.
-  els.confirmTitle.classList.toggle("sr-only", !coming);
+      : `See you Saturday if ${title} wins.`;
+  // The conditional line lives on the screen. The heading stays for someone
+  // coming either way, and for assistive tech (the screen is hidden).
+  els.confirmTitle.classList.toggle("sr-only", !definite);
+  els.confirmTitle.closest(".step").classList.toggle("is-conditional", coming && !definite);
   els.confirmSub.textContent = "";
   els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });
