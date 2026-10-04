@@ -151,12 +151,14 @@
         <p class="eyebrow">Prothro</p>
         <h1>Movie <em>Night</em></h1>
         <p class="when"><span id="date-label">Saturday, Oct 10</span><span class="dot" aria-hidden="true"></span><span>Showtime <time id="showtime" datetime="">7:11 PM</time></span></p>
-        <p class="countdown" id="countdown" data-countdown aria-hidden="true"></p>
-        <p class="sr-only" id="countdown-sr"></p>
       </div>
       <div class="hero-foot">
-        <a class="btn btn-primary btn-cta" href="#rsvp" id="hero-cta"><span id="hero-cta-label">RSVP</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-        <a class="btn btn-ghost" data-dir href="https://www.google.com/maps/dir/?api=1&amp;destination=11921%20County%20Road%20152%20W%2C%20Bullard%2C%20TX%2075757" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18s6-5.6 6-10a6 6 0 1 0-12 0c0 4.4 6 10 6 10zm0-7.6a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z" fill="currentColor" fill-rule="evenodd"/></svg>Directions</a>
+        <p class="countdown" id="countdown" data-countdown aria-hidden="true"></p>
+        <p class="sr-only" id="countdown-sr"></p>
+        <div class="hero-actions">
+          <a class="btn btn-primary btn-cta" href="#rsvp" id="hero-cta"><span id="hero-cta-label">RSVP</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+          <a class="btn btn-ghost" data-dir href="https://www.google.com/maps/dir/?api=1&amp;destination=11921%20County%20Road%20152%20W%2C%20Bullard%2C%20TX%2075757" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18s6-5.6 6-10a6 6 0 1 0-12 0c0 4.4 6 10 6 10zm0-7.6a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z" fill="currentColor" fill-rule="evenodd"/></svg>Directions</a>
+        </div>
       </div>
     </header>
 
@@ -182,7 +184,7 @@
               <p class="rm-title">Movie <em>Night</em></p>
               <p class="countdown" data-countdown></p>
             </div>
-            <p class="closed" id="closed-note" hidden>RSVPs are closed.</p>
+            <p class="sr-only" id="closed-note" hidden>RSVPs are closed.</p>
             <div class="stack" id="invite-actions">
               <button type="button" class="btn btn-primary btn-xl" id="im-in">I'm in</button>
               <button type="button" class="btn btn-ghost btn-xl" id="cant">Can't make it</button>

@@ -376,6 +376,7 @@ function cardFor() {
   switch (state.step) {
     case "invite":
       if (state.showing) return ["Now showing", winnerTitle(), ""];
+      if (!state.flags.rsvpsOpen) return [`Sat, Oct 10 · ${time}`, "RSVPs closed", ""];
       return ["", "You in?", `Sat, Oct 10 · ${time}`];
     case "pick":
       return state.flags.votingOpen ? ["", "Your pick?", "Most votes wins"] : ["", "Coming for?", ""];
@@ -464,6 +465,7 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
     els.confirmSub.textContent = `${movieTitle(rsvp.would_attend)} only`;
   }
   els.heroCtaLabel.textContent = coming ? "You're in" : "Your RSVP";
+  els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });
   renderVotes();
   if (celebrate && coming) window.setTimeout(popcorn, 200);

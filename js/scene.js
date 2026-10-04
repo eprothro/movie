@@ -106,6 +106,15 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
   let screenState = "";
   let leaderN = "";
   let lit = null;
+  const written = new Map();
+  const write = (el, prop, value) => {
+    const key = el.id || el.className;
+    const k = `${key}|${prop}`;
+    if (written.get(k) === value) return;
+    written.set(k, value);
+    if (prop.startsWith("--")) el.style.setProperty(prop, value);
+    else el.style[prop] = value;
+  };
 
   function measure() {
     W = world.clientWidth;
@@ -140,7 +149,7 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
       const s = scaleFor(layer, e);
       if (layer.el === screenLayer) screenScale = s;
       if (layer.el === projector) projScale = s;
-      const t = `translate3d(0,${(dy * layer.tilt).toFixed(2)}px,0) scale(${s.toFixed(4)})`;
+      const t = `translate3d(0,${(dy * layer.tilt).toFixed(1)}px,0) scale(${s.toFixed(4)})`;
       if (t !== layer.last) {
         layer.el.style.transform = t;
         layer.last = t;
@@ -159,8 +168,11 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
     const yTop = hy + dy + screenScale * (faceBottom - hy);
     const yLens = hy + dy + projScale * (lensY - hy);
     const span = Math.max(1, yLens - yTop);
-    beam.style.transform = `translate3d(0,${yTop.toFixed(2)}px,0) scale(${screenScale.toFixed(4)},${(span / 100).toFixed(4)})`;
-    beam.style.setProperty("--beam", (0.55 * (1 - smooth(0.68, 0.94, e))).toFixed(3));
+    const beamOpacity = 0.55 * (1 - smooth(0.68, 0.94, e));
+    write(beam, "--beam", beamOpacity.toFixed(2));
+    if (beamOpacity > 0) {
+      write(beam, "transform", `translate3d(0,${yTop.toFixed(1)}px,0) scale(${screenScale.toFixed(4)},${(span / 100).toFixed(4)})`);
+    }
 
     const isLit = reduced || e >= LIT_AT;
     if (isLit !== lit) {
@@ -178,7 +190,7 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
         leaderN = n;
         leader.dataset.n = n;
       }
-      hand.style.transform = `rotate(${((seg % 1) * 360).toFixed(1)}deg)`;
+      write(hand, "transform", `rotate(${((seg % 1) * 360).toFixed(0)}deg)`);
     }
     if (state !== screenState) {
       screenState = state;
@@ -190,8 +202,8 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
   function textFx(p) {
     if (reduced) return;
     const y = p * stageTop;
-    hero.style.opacity = (1 - smooth(H * 0.05, H * 0.42, y)).toFixed(3);
-    beat.style.opacity = (smooth(0.12, 0.24, p) * (1 - smooth(0.66, 0.8, p))).toFixed(3);
+    write(hero, "opacity", (1 - smooth(H * 0.05, H * 0.42, y)).toFixed(2));
+    write(beat, "opacity", (smooth(0.12, 0.24, p) * (1 - smooth(0.66, 0.8, p))).toFixed(2));
   }
 
   function tick(time) {
