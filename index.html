@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <title>Prothro Movie Night</title>
   <meta name="description" content="Saturday, October 10. Showtime after sunset. The Princess Bride or Top Gun: Maverick — you pick.">
   <meta name="theme-color" content="#050814">
@@ -211,12 +211,12 @@
             <h2 class="sr-only" tabindex="-1" id="other-title">And if the other one wins?</h2>
             <div class="stack" id="also">
               <button type="button" class="btn btn-choice btn-xl" data-also="yes" aria-pressed="false">Still in</button>
-              <button type="button" class="btn btn-choice btn-xl" data-also="no" aria-pressed="false">We'd skip it</button>
+              <button type="button" class="btn btn-choice btn-xl" data-also="no" aria-pressed="false">Probably not for us</button>
             </div>
           </div>
 
           <form class="step" data-step="name" id="name-form" novalidate>
-            <div class="step-head"><button type="button" class="back" data-back aria-label="Back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></span></div>
+            <div class="step-head"><button type="button" class="back" data-back aria-label="Back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="chairs" id="chairs" aria-hidden="true"></div><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></span></div>
             <h2 class="sr-only" tabindex="-1">Who's coming?</h2>
             <label class="field">
               <span class="field-label">Name</span>
@@ -234,7 +234,6 @@
                 </button>
               </div>
             </div>
-            <div class="chairs" id="chairs" aria-hidden="true"></div>
             <div class="hp" aria-hidden="true"><label>Leave blank <input id="hp-name" name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
             <p class="error" id="name-error" role="alert" hidden></p>
             <button type="submit" class="btn btn-primary btn-xl" id="name-submit">Count me in</button>
@@ -242,7 +241,7 @@
 
           <form class="step" data-step="cant" id="cant-form" novalidate>
             <div class="step-head"><button type="button" class="back" data-back aria-label="Back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
-            <h2 class="sr-only" tabindex="-1">We'll miss you. Your name?</h2>
+            <h2 class="sr-only" tabindex="-1">We'll see you next time! Your name?</h2>
             <label class="field">
               <span class="field-label">Name</span>
               <input id="cant-name" name="name" type="text" autocomplete="name" autocapitalize="words" enterkeyhint="done" maxlength="60" required>

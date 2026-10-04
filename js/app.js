@@ -235,6 +235,20 @@ function bind() {
 
   els.name.addEventListener("input", () => clearError(els.name, els.nameError));
   els.cantName.addEventListener("input", () => clearError(els.cantName, els.cantError));
+  for (const input of [els.name, els.cantName]) {
+    input.addEventListener("focus", () => {
+      document.documentElement.classList.add("is-typing");
+      placeField();
+      window.clearTimeout(placeTimer);
+      placeTimer = window.setTimeout(placeField, 350);
+    });
+    input.addEventListener("blur", releaseField);
+  }
+  const vv = window.visualViewport;
+  if (vv) {
+    vv.addEventListener("resize", onViewport);
+    vv.addEventListener("scroll", onViewport);
+  }
 
   els.nameForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -283,9 +297,74 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
   if (scroll && !scene.atStage()) scene.goToStage();
   if (!focus) return;
   const active = els.steps.find((el) => el.dataset.step === step);
-  if (step === "name" && !els.name.value) els.name.focus({ preventScroll: true });
-  else if (step === "cant" && !els.cantName.value) els.cantName.focus({ preventScroll: true });
+  if (step === "name" && !els.name.value) holdField(els.name);
+  else if (step === "cant" && !els.cantName.value) holdField(els.cantName);
   else active.querySelector("h2")?.focus({ preventScroll: true });
+}
+
+// The steps are only a viewport tall and the scene is position:fixed, so a
+// keyboard that overlays the layout has nothing to scroll the field into.
+// While one is open, drop scroll-snap, pad by the overlap, and move the
+// field and its button into the visual viewport.
+let placeTimer = 0;
+let placing = false;
+
+function typingField() {
+  const el = document.activeElement;
+  return el === els.name || el === els.cantName ? el : null;
+}
+
+function keyboardOverlap() {
+  const vv = window.visualViewport;
+  if (!vv) return 0;
+  return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+}
+
+function placeField() {
+  const input = typingField();
+  if (!input) return;
+  document.documentElement.classList.add("is-typing");
+  document.documentElement.style.setProperty("--kb", `${keyboardOverlap()}px`);
+  const vv = window.visualViewport;
+  const viewTop = vv ? vv.offsetTop : 0;
+  const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+  const submit = input.form.querySelector('[type="submit"]');
+  const pad = 12;
+  const field = input.getBoundingClientRect();
+  const button = submit.getBoundingClientRect();
+  let delta = 0;
+  if (button.bottom > viewBottom - pad) delta = button.bottom - (viewBottom - pad);
+  if (field.top - delta < viewTop + pad) delta = field.top - (viewTop + pad);
+  if (Math.abs(delta) < 2) return;
+  placing = true;
+  window.scrollBy(0, delta);
+  requestAnimationFrame(() => {
+    placing = false;
+  });
+}
+
+function holdField(input) {
+  document.documentElement.classList.add("is-typing");
+  input.focus({ preventScroll: true });
+  placeField();
+  window.clearTimeout(placeTimer);
+  // iOS animates the keyboard for about 300ms and fires visualViewport along the way.
+  placeTimer = window.setTimeout(placeField, 350);
+}
+
+function releaseField() {
+  window.setTimeout(() => {
+    if (typingField()) return;
+    window.clearTimeout(placeTimer);
+    document.documentElement.classList.remove("is-typing");
+    document.documentElement.style.removeProperty("--kb");
+  }, 80);
+}
+
+function onViewport() {
+  if (placing || !typingField()) return;
+  window.clearTimeout(placeTimer);
+  placeTimer = window.setTimeout(placeField, 60);
 }
 
 function syncPick() {
@@ -401,10 +480,10 @@ function cardFor() {
     case "name":
       return ["", "Who's coming?", ""];
     case "cant":
-      return ["", "We'll miss you.", ""];
+      return ["", "We'll see you next time!", ""];
     case "confirm": {
       if (!r) return ["", "", ""];
-      if (r.would_attend === "none") return ["", "We'll miss you.", ""];
+      if (r.would_attend === "none") return ["", "We'll see you next time!", ""];
       const title = movieTitle(r.vote || r.would_attend);
       const only = r.would_attend !== "both";
       return ["Your vote", title, only ? "Only this one" : ""];
@@ -467,7 +546,7 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
   state.editing = false;
   scene.skipLeader();
   const coming = rsvp.would_attend !== "none";
-  els.confirmTitle.textContent = coming ? "See you Saturday." : "We'll miss you.";
+  els.confirmTitle.textContent = coming ? "See you Saturday." : "We'll see you next time!";
   els.confirmTitle.classList.toggle("sr-only", !coming);
   els.confirmSub.textContent = "";
   els.change.hidden = !state.flags.rsvpsOpen;
@@ -521,7 +600,7 @@ function submitComing() {
   const name = nameValue(els.name);
   if (!name || name.length > 60) {
     setError(els.name, els.nameError, "name");
-    els.name.focus();
+    holdField(els.name);
     return;
   }
   if (!state.pick) return setStep("pick");
@@ -547,7 +626,7 @@ function submitCant() {
   const name = nameValue(els.cantName);
   if (!name || name.length > 60) {
     setError(els.cantName, els.cantError, "name");
-    els.cantName.focus();
+    holdField(els.cantName);
     return;
   }
   save(

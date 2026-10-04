@@ -76,7 +76,9 @@ html {
   overscroll-behavior-y: none;
 }
 
-html.is-walking {
+html.is-walking,
+html.is-typing {
+  /* Snap would pull a focused field back under the keyboard. */
   scroll-snap-type: none;
 }
 
@@ -1073,7 +1075,9 @@ h1 em {
      lvh it ran past it while the toolbar showed. */
   min-height: 100svh;
   min-height: 100dvh;
-  padding-bottom: calc(var(--safe-b) + 16px);
+  /* --kb is the keyboard overlap. It gives the short steps room to scroll
+     the field up into the visible band; the fixed scene does not move. */
+  padding-bottom: calc(var(--safe-b) + 16px + var(--kb, 0px));
   scroll-snap-align: start;
   /* A flick from the landing stops here even when a tall step (the name
      form, the confirmation) makes the stage longer than the screen. */
@@ -1483,6 +1487,7 @@ h1 em {
 input[type="text"] {
   width: 100%;
   height: 58px;
+  scroll-margin: 24px;
   padding: 0 18px;
   border: 0;
   border-radius: 16px;
@@ -1557,17 +1562,22 @@ input[type="text"][aria-invalid="true"] {
 }
 
 .chairs {
+  /* Sit in the step header, between back and the pips, so they don't add a
+     row under the stepper and push the button off a short screen. */
   display: flex;
+  flex: 1;
   justify-content: center;
-  flex-wrap: nowrap;
-  gap: 2px;
-  height: 36px;
-  margin: 0 0 4px;
+  align-items: flex-end;
+  min-width: 0;
+  height: 32px;
+  margin: 0 4px;
 }
 
 .chair {
-  width: 30px;
-  height: 36px;
+  width: 26px;
+  height: 32px;
+  flex: 0 1 26px;
+  min-width: 12px;
   color: var(--chair);
 }
 
