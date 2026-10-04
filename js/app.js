@@ -289,7 +289,13 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
     markPosters();
   }
   if (step === "other") markAlso();
-  if (step === "name") els.nameSubmit.textContent = state.rsvp ? "Update" : "Count me in";
+  if (step === "name") {
+    const conditional = state.also === "no" && state.pick;
+    els.nameSubmit.textContent = state.rsvp ? "Update" : conditional ? "Save our spot" : "Count me in";
+    document.getElementById("name-title").textContent = conditional
+      ? `Who's coming? (assuming ${movieTitle(state.pick)} wins)`
+      : "Who's coming?";
+  }
   if (step === "cant") els.cantSubmit.textContent = state.rsvp ? "Update" : "Send";
 
   paintScreen();
@@ -478,7 +484,9 @@ function cardFor() {
       return state.flags.votingOpen ? ["And if", `${other} wins?`, ""] : ["And if it's", `${other}?`, ""];
     }
     case "name":
-      return ["", "Who's coming?", ""];
+      return state.also === "no" && state.pick
+        ? ["", "Who's coming?", `(assuming ${movieTitle(state.pick)} wins)`]
+        : ["", "Who's coming?", ""];
     case "cant":
       return ["", "We'll see you next time!", ""];
     case "confirm": {
@@ -486,7 +494,7 @@ function cardFor() {
       if (r.would_attend === "none") return ["", "We'll see you next time!", ""];
       const title = movieTitle(r.vote || r.would_attend);
       const only = r.would_attend !== "both";
-      return ["Your vote", title, only ? "Only this one" : ""];
+      return ["Your vote", title, only ? `if ${title} wins` : ""];
     }
     default:
       return ["", "", ""];
@@ -546,13 +554,19 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
   state.editing = false;
   scene.skipLeader();
   const coming = rsvp.would_attend !== "none";
-  els.confirmTitle.textContent = coming ? "See you Saturday." : "We'll see you next time!";
-  els.confirmTitle.classList.toggle("sr-only", !coming);
+  const definite = rsvp.would_attend === "both";
+  els.confirmTitle.textContent = !coming
+    ? "We'll see you next time!"
+    : definite
+      ? "See you Saturday."
+      : `If ${movieTitle(rsvp.vote || rsvp.would_attend)} wins.`;
+  // "See you Saturday." is only for a guest who is coming either way.
+  els.confirmTitle.classList.toggle("sr-only", !definite);
   els.confirmSub.textContent = "";
   els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });
   renderVotes();
-  if (celebrate && coming) window.setTimeout(popcorn, 200);
+  if (celebrate && definite) window.setTimeout(popcorn, 200);
 }
 
 function renderVotes() {
