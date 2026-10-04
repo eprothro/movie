@@ -257,9 +257,10 @@ a {
 }
 
 .hills-back {
-  width: calc(480 * var(--s));
+  --w: max(480 * var(--s), 150vw);
+  width: var(--w);
   height: calc(30 * var(--s));
-  left: calc(50% - 240 * var(--s));
+  left: calc(50% - var(--w) / 2);
   top: calc(var(--hy) - 9 * var(--s));
 }
 
@@ -661,9 +662,10 @@ a {
 }
 
 .hills-front {
-  width: calc(480 * var(--s));
+  --w: max(480 * var(--s), 290vw);
+  width: var(--w);
   height: calc(70 * var(--s));
-  left: calc(50% - 240 * var(--s));
+  left: calc(50% - var(--w) / 2);
   top: calc(var(--hy) + 2 * var(--s));
 }
 

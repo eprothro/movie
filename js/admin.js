@@ -1,6 +1,4 @@
 import { EVENT, PIN_KEY, movieTitle, peopleLabel } from "./config.js";
-import { eventShowtime } from "./sunset.js";
-import { applySky } from "./sky.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -12,13 +10,13 @@ const live = $("pin-live");
 const unlockBtn = $("unlock");
 const pinError = $("pin-error");
 const keypad = $("keypad");
-const stats = $("stats");
 const projection = $("projection");
+const tally = $("tally");
+const guestCount = $("guest-count");
 const list = $("guest-list");
 const bookError = $("book-error");
 const toggleRsvp = $("toggle-rsvp");
 const toggleVote = $("toggle-vote");
-const noLine = $("no-line");
 
 let pin = "";
 let savedPin = readPin();
@@ -67,7 +65,6 @@ document.addEventListener("keydown", (event) => {
 });
 
 renderDots();
-applySky(eventShowtime(EVENT)?.showtime ?? null);
 boot();
 
 function readPin() {
@@ -89,7 +86,11 @@ function writePin(value) {
 
 function renderDots() {
   dots.replaceChildren();
-  for (let i = 0; i < pin.length; i += 1) dots.append(document.createElement("i"));
+  for (let i = 0; i < Math.max(4, pin.length); i += 1) {
+    const dot = document.createElement("i");
+    if (i < pin.length) dot.className = "on";
+    dots.append(dot);
+  }
   live.textContent = pin.length ? `${pin.length} digits entered` : "";
   unlockBtn.disabled = locked || pin.length < 4 || busy;
 }
@@ -240,51 +241,48 @@ function applyFlags(rsvpsOpen, votingOpen) {
 }
 
 function attendLine(row) {
-  if (row.would_attend === "none") return "Can't";
+  if (row.would_attend === "none") return "Can't make it";
   if (row.would_attend === "both") {
-    return row.vote ? `Both · ${movieTitle(row.vote)}` : "Both";
+    return row.vote ? `Either · voted ${movieTitle(row.vote)}` : "Either";
   }
-  return movieTitle(row.would_attend) || "";
+  return `${movieTitle(row.would_attend)} only`;
 }
 
 function renderBook(data) {
   applyFlags(data.rsvps_open !== false, data.voting_open !== false);
   const votes = data.votes || {};
-  const insidePeople = Number(data.if_inside_out) || 0;
-  const mavPeople = Number(data.if_top_gun) || 0;
-  projection.hidden = false;
-  projection.textContent = `If Inside Out: ${peopleLabel(insidePeople)} · If Top Gun: ${peopleLabel(mavPeople)}`;
-
   const cards = [
-    ["Inside Out", votes.inside_out || 0],
-    ["Maverick", votes.top_gun || 0],
+    ["inside_out", "If Inside Out", Number(data.if_inside_out) || 0, Number(votes.inside_out) || 0],
+    ["top_gun", "If Top Gun", Number(data.if_top_gun) || 0, Number(votes.top_gun) || 0],
   ];
-  stats.replaceChildren();
-  cards.forEach(([label, value]) => {
-    const tile = document.createElement("div");
-    tile.className = "stat";
-    const num = document.createElement("b");
-    num.textContent = String(value);
-    const caption = document.createElement("span");
-    caption.textContent = label;
-    tile.append(num, caption);
-    stats.append(tile);
+  const lead = cards[0][3] === cards[1][3] ? "" : cards[0][3] > cards[1][3] ? "inside_out" : "top_gun";
+  projection.replaceChildren();
+  cards.forEach(([id, label, people, count]) => {
+    const card = document.createElement("div");
+    card.className = `proj${id === lead ? " is-lead" : ""}`;
+    const title = document.createElement("p");
+    title.className = "proj-label";
+    title.textContent = label;
+    const big = document.createElement("p");
+    big.className = "proj-people";
+    big.innerHTML = `<b>${people}</b> ${people === 1 ? "person" : "people"}`;
+    const vote = document.createElement("p");
+    vote.className = "proj-votes";
+    vote.textContent = `${count} ${count === 1 ? "vote" : "votes"}${id === lead ? " · leading" : ""}`;
+    card.append(title, big, vote);
+    projection.append(card);
   });
 
   const nos = Number(data.none_parties) || 0;
-  if (nos > 0) {
-    noLine.hidden = false;
-    noLine.textContent = nos === 1 ? "1 can't make it" : `${nos} can't make it`;
-  } else {
-    noLine.hidden = true;
-    noLine.textContent = "";
-  }
+  const coming = Number(data.coming) || 0;
+  tally.textContent = `${peopleLabel(coming)} coming${nos ? ` · ${nos} can't make it` : ""}`;
 
   const rows = Array.isArray(data.rsvps) ? data.rsvps : [];
+  guestCount.textContent = rows.length ? String(rows.length) : "";
   list.replaceChildren();
   if (rows.length === 0) {
     const empty = document.createElement("p");
-    empty.className = "quiet";
+    empty.className = "empty";
     empty.textContent = "No RSVPs yet.";
     list.append(empty);
     return;
@@ -300,7 +298,7 @@ function renderBook(data) {
 
   rows.forEach((row) => {
     const article = document.createElement("article");
-    article.className = "guest";
+    article.className = `guest${row.would_attend === "none" ? " is-out" : ""}`;
     const top = document.createElement("div");
     top.className = "guest-top";
     const name = document.createElement("h3");
