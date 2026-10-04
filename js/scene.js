@@ -28,13 +28,10 @@ const FLIES = {
   fore: { n: 10, r: [2.6, 5.5], drift: 6 },
 };
 
-// Guided walk to the screen. Time is warped so the vote beat and the leader
-// each get a longer share of the walk than the empty meadow between them.
-const WALK_MS = 3800;
-const LINGER = [
-  [0.16, 0.36, 1.6],
-  [LIT_AT - 0.02, CARD_AT + 0.02, 0.85],
-];
+// Guided walk to the screen. Time is warped so each beat of the 3-2-1 holds
+// for about half a second. About 3.9s from the top to the ask.
+const WALK_MS = 3900;
+const LINGER = [[LIT_AT - 0.02, CARD_AT + 0.02, 2.6]];
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
 function walkTable(n = 400) {
@@ -65,11 +62,6 @@ function walkTable(n = 400) {
     },
   };
 }
-
-// Fade the vote title while the screen is still this far below it, then hide
-// it. A later hard cutoff guarantees the two never share pixels.
-const CLEAR_FROM = 108;
-const CLEAR_TO = 60;
 
 function populate(world) {
   const rand = seeded(7);
@@ -104,7 +96,7 @@ function populate(world) {
   }
 }
 
-export function createScene({ world, stage, hero, hold, reduced, onScreen, onStart }) {
+export function createScene({ world, stage, hero, reduced, onScreen, onStart }) {
   populate(world);
   const walk = walkTable();
 
@@ -117,9 +109,7 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen, onSta
           ? [0.25, 0.55]
           : el.classList.contains("flies-near")
             ? [0.62, 0.9]
-            : el.classList.contains("lights")
-              ? [0.08, 0.16]
-              : null;
+            : null;
     return {
       el,
       z: el.dataset.z ? Number(el.dataset.z) : null,
@@ -142,8 +132,6 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen, onSta
 
   let W = 0;
   let horizon = 0.42;
-  let screenTop = 0;
-  let holdBottom = 0;
   let H = 0;
   let hy = 0;
   let drop = 0;
@@ -182,11 +170,6 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen, onSta
       layer.last = "";
     });
     faceBottom = screenLayer.offsetTop + face.offsetTop + face.offsetHeight;
-    screenTop = screenLayer.offsetTop;
-    hold.style.transform = "";
-    written.delete(`${hold.className}|transform`);
-    const holdRect = hold.getBoundingClientRect();
-    holdBottom = holdRect.bottom;
     lensY = projector.offsetTop + projector.offsetHeight * (45 / 110);
     stageTop = Math.max(1, stage.getBoundingClientRect().top + window.scrollY);
     target = reduced ? 1 : clamp(window.scrollY / stageTop);
@@ -224,22 +207,6 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen, onSta
           layer.lastOpacity = rounded;
         }
       }
-    }
-
-    if (!reduced) {
-      const rise = smooth(0.34, 0.5, (e * stageTop) / H);
-      const edge = hy + dy + screenScale * (screenTop - hy);
-      const gap = edge - holdBottom;
-      // Gap keeps it off the screen; the scroll cap finishes the fade once the
-      // leader is up, so it doesn't hang as a ghost above the countdown.
-      const clear = Math.min(smooth(CLEAR_TO, CLEAR_FROM, gap), 1 - smooth(0.6, 0.72, e));
-      // Leave upward, away from the screen, instead of dissolving on top of it.
-      const up = (1 - clear) * 28;
-      const down = (1 - rise) * 12;
-      const o = edge < holdBottom - up + 16 ? 0 : Math.round(rise * clear * 100) / 100;
-      write(hold, "opacity", String(o));
-      write(hold, "visibility", o <= 0 ? "hidden" : "visible");
-      write(hold, "transform", `translate3d(0,${(down - up).toFixed(1)}px,0)`);
     }
 
     const foreIn = smooth(0.8, 1, e);
@@ -283,8 +250,8 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen, onSta
 
   function textFx(p) {
     if (reduced) return;
-    const y = p * stageTop;
-    write(hero, "opacity", (1 - smooth(H * 0.05, H * 0.42, y)).toFixed(2));
+    // Gone early, before the date climbs into the string lights.
+    write(hero, "opacity", (1 - smooth(0.02, 0.14, p)).toFixed(2));
   }
 
   function tick(time) {

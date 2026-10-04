@@ -79,7 +79,6 @@ const scene = createScene({
   world: $("world"),
   stage: $("rsvp"),
   hero: $("hero"),
-  hold: document.querySelector(".vote-hold"),
   reduced,
 });
 
