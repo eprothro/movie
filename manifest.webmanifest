@@ -3,8 +3,8 @@
   "short_name": "Movie Night",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#070910",
-  "theme_color": "#070910",
+  "background_color": "#07080c",
+  "theme_color": "#07080c",
   "icons": [
     { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
     { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },

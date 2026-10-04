@@ -6,7 +6,7 @@ The site is static. GitHub Pages serves it from the `main` branch root. The cust
 
 ## Before it works
 
-1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), run the whole file [`supabase/migrations/001_movie_night.sql`](supabase/migrations/001_movie_night.sql). It is safe to re-run.
+1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), run the whole file [`supabase/migrations/001_movie_night.sql`](supabase/migrations/001_movie_night.sql). It is safe to re-run. If it has already been applied, run it again: it adds `would_attend`, copies existing yes/maybe/no rows across, drops `status`, and recreates the functions. The PIN hash is not touched.
 2. Set the host PIN (4–8 digits). This is the only place the PIN should exist. Do not commit it.
 
    ```sql
@@ -26,7 +26,7 @@ Showtime is 15 minutes after sunset at the backyard, 32.15498, -95.36768 (`Ameri
 
 Five wrong PINs lock admin calls for 10 minutes. The PIN is stored only as a bcrypt hash (`pgcrypto`). Anon cannot read `movie_settings`.
 
-The guest book lists every RSVP, headcount, and the vote tally. Hosts can remove an entry and close or reopen RSVPs and voting.
+The guest book lists every RSVP. Each row stores `would_attend` (`inside_out`, `top_gun`, `both`, or `none`) and `vote` (the preferred movie, or null). The public page shows vote counts. The booth also shows projected headcount: people who would come if that movie plays, counting anyone marked for that movie or for both. Hosts can remove an entry and close or reopen RSVPs and voting.
 
 ## How RSVPs are stored
 
@@ -36,7 +36,7 @@ Row level security is on, with no policies, and table privileges are revoked fro
 | --- | --- | --- |
 | `movie_submit_rsvp` | guest | Create or update. Returns an edit token. |
 | `movie_get_rsvp` | guest | Their own RSVP, by token. |
-| `movie_get_standings` | anyone | Vote counts and headcount. No names. |
+| `movie_get_standings` | anyone | Vote counts. No names, no per-movie headcount. |
 | `movie_admin_overview` | hosts | Full list. Requires the PIN. |
 | `movie_admin_delete` | hosts | Remove one RSVP. |
 | `movie_admin_set_open` | hosts | Open or close RSVPs and voting. |

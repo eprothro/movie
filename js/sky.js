@@ -1,17 +1,17 @@
-// Dusk-to-night tint. Full dusk until 36 hours out, full night at showtime.
+// Night sky. Always dark. A slightly deeper black as showtime arrives.
 
-const DUSK = {
-  top: "#1b2c4e",
-  mid: "#c46b62",
-  horizon: "#e7a06a",
-  ground: "#2c1814",
+const EARLY = {
+  top: "#070b16",
+  mid: "#10182e",
+  horizon: "#16141c",
+  ground: "#07080c",
 };
 
 const NIGHT = {
-  top: "#070910",
-  mid: "#151b30",
-  horizon: "#1a1422",
-  ground: "#100c10",
+  top: "#03040a",
+  mid: "#070b14",
+  horizon: "#0c0e16",
+  ground: "#05060a",
 };
 
 function channel(hex) {
@@ -41,13 +41,13 @@ export function applySky(showtime) {
     if (hours <= 0) phase = "showing";
   }
   const set = (name, value) => root.style.setProperty(name, value);
-  set("--sky-top", mix(DUSK.top, NIGHT.top, eased));
-  set("--sky-mid", mix(DUSK.mid, NIGHT.mid, eased));
-  set("--sky-horizon", mix(DUSK.horizon, NIGHT.horizon, eased));
-  set("--sky-ground", mix(DUSK.ground, NIGHT.ground, eased));
-  set("--sky-glow", (0.55 - eased * 0.38).toFixed(3));
-  root.dataset.sky = eased > 0.78 ? "night" : eased > 0.38 ? "blue" : "dusk";
+  set("--sky-top", mix(EARLY.top, NIGHT.top, eased));
+  set("--sky-mid", mix(EARLY.mid, NIGHT.mid, eased));
+  set("--sky-horizon", mix(EARLY.horizon, NIGHT.horizon, eased));
+  set("--sky-ground", mix(EARLY.ground, NIGHT.ground, eased));
+  set("--sky-glow", (0.16 - eased * 0.08).toFixed(3));
+  root.dataset.sky = eased > 0.72 ? "night" : "deep";
   const theme = document.querySelector('meta[name="theme-color"]');
-  if (theme) theme.setAttribute("content", eased > 0.78 ? "#070910" : "#1b2c4e");
+  if (theme) theme.setAttribute("content", "#07080c");
   return phase;
 }

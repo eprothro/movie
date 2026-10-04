@@ -13,13 +13,12 @@ const unlockBtn = $("unlock");
 const pinError = $("pin-error");
 const keypad = $("keypad");
 const stats = $("stats");
+const projection = $("projection");
 const list = $("guest-list");
 const bookError = $("book-error");
 const toggleRsvp = $("toggle-rsvp");
 const toggleVote = $("toggle-vote");
 const noLine = $("no-line");
-
-const STATUS = { yes: "Yes", maybe: "Maybe", no: "Can't" };
 
 let pin = "";
 let savedPin = readPin();
@@ -240,12 +239,23 @@ function applyFlags(rsvpsOpen, votingOpen) {
   $("vote-switch-label").textContent = votingOpen ? "Open" : "Closed";
 }
 
+function attendLine(row) {
+  if (row.would_attend === "none") return "Can't";
+  if (row.would_attend === "both") {
+    return row.vote ? `Both · ${movieTitle(row.vote)}` : "Both";
+  }
+  return movieTitle(row.would_attend) || "";
+}
+
 function renderBook(data) {
   applyFlags(data.rsvps_open !== false, data.voting_open !== false);
   const votes = data.votes || {};
+  const insidePeople = Number(data.if_inside_out) || 0;
+  const mavPeople = Number(data.if_top_gun) || 0;
+  projection.hidden = false;
+  projection.textContent = `If Inside Out: ${peopleLabel(insidePeople)} · If Top Gun: ${peopleLabel(mavPeople)}`;
+
   const cards = [
-    ["Coming", data.yes_headcount || 0],
-    ["Maybe", data.maybe_headcount || 0],
     ["Inside Out", votes.inside_out || 0],
     ["Maverick", votes.top_gun || 0],
   ];
@@ -261,7 +271,7 @@ function renderBook(data) {
     stats.append(tile);
   });
 
-  const nos = Number(data.no_parties) || 0;
+  const nos = Number(data.none_parties) || 0;
   if (nos > 0) {
     noLine.hidden = false;
     noLine.textContent = nos === 1 ? "1 can't make it" : `${nos} can't make it`;
@@ -295,16 +305,17 @@ function renderBook(data) {
     top.className = "guest-top";
     const name = document.createElement("h3");
     name.textContent = row.name;
-    const count = document.createElement("p");
-    count.className = "count";
-    count.textContent = peopleLabel(row.party_size);
-    top.append(name, count);
+    top.append(name);
+    if (row.would_attend !== "none") {
+      const count = document.createElement("p");
+      count.className = "count";
+      count.textContent = peopleLabel(row.party_size);
+      top.append(count);
+    }
 
     const meta = document.createElement("p");
     meta.className = "meta";
-    const status = STATUS[row.status] || row.status;
-    const vote = row.vote ? movieTitle(row.vote) : "";
-    meta.textContent = vote ? `${status} · ${vote}` : status;
+    meta.textContent = attendLine(row);
 
     article.append(top, meta);
 
