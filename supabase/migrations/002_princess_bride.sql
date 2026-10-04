@@ -2,6 +2,10 @@
 -- Run this whole file in the Supabase SQL editor. It is safe to re-run.
 -- Existing Inside Out RSVPs are kept and counted as Princess Bride votes.
 
+alter table public.movie_rsvps drop constraint if exists movie_rsvps_vote_chk;
+alter table public.movie_rsvps drop constraint if exists movie_rsvps_attend_chk;
+alter table public.movie_rsvps drop constraint if exists movie_rsvps_attend_vote_chk;
+
 update public.movie_rsvps
   set would_attend = 'princess_bride'
 where would_attend = 'inside_out';
@@ -10,9 +14,6 @@ update public.movie_rsvps
   set vote = 'princess_bride'
 where vote = 'inside_out';
 
-alter table public.movie_rsvps drop constraint if exists movie_rsvps_vote_chk;
-alter table public.movie_rsvps drop constraint if exists movie_rsvps_attend_chk;
-alter table public.movie_rsvps drop constraint if exists movie_rsvps_attend_vote_chk;
 
 alter table public.movie_rsvps
   add constraint movie_rsvps_attend_chk
@@ -227,7 +228,7 @@ begin
     return v_err;
   end if;
 
-  delete from public.movie_rsvps;
+  delete from public.movie_rsvps where true;  -- WHERE needed under pg_safeupdate
   return jsonb_build_object('ok', true);
 end;
 $$;
