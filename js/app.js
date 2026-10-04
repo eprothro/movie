@@ -1,57 +1,54 @@
-import { EVENT, TOKEN_KEY, movieTitle, peopleLabel } from "./config.js";
+import { EVENT, TOKEN_KEY, movieTitle, shortTitle } from "./config.js";
 import { eventShowtime, formatClock } from "./sunset.js";
-import { applySky } from "./sky.js";
+import { createScene } from "./scene.js";
 
 const $ = (id) => document.getElementById(id);
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const els = {
-  date: $("date-label"),
-  showtime: $("showtime-value"),
-  ticks: $("ticks"),
-  showState: $("show-state"),
-  cd: { d: $("cd-d"), h: $("cd-h"), m: $("cd-m"), s: $("cd-s") },
-  cdLabel: $("cd-label"),
-  resume: $("resume"),
+  steps: [...document.querySelectorAll(".step")],
+  heroCta: $("hero-cta"),
+  heroCtaLabel: $("hero-cta-label"),
+  showtime: $("showtime"),
+  countdowns: [...document.querySelectorAll("[data-countdown]")],
+  countdownSr: $("countdown-sr"),
   closed: $("closed-note"),
+  inviteActions: $("invite-actions"),
   imIn: $("im-in"),
-  cantBtn: $("cant"),
-  pick: $("step-pick"),
-  pickTitle: $("pick-title"),
+  cant: $("cant"),
+  keep: $("keep"),
   posters: $("posters"),
-  pickNext: $("pick-next"),
-  prefer: $("step-prefer"),
-  preferTitle: $("prefer-title"),
-  nameStep: $("step-name"),
+  also: $("also"),
+  nameForm: $("name-form"),
   name: $("name"),
+  nameError: $("name-error"),
+  nameSubmit: $("name-submit"),
   partyValue: $("party-value"),
   partyDec: $("party-dec"),
   partyInc: $("party-inc"),
   chairs: $("chairs"),
-  form: $("form"),
-  error: $("form-error"),
-  submit: $("submit-btn"),
-  cant: $("step-cant"),
   cantForm: $("cant-form"),
   cantName: $("cant-name"),
   cantError: $("cant-error"),
   cantSubmit: $("cant-submit"),
-  honeypot: $("mx_field"),
-  cantHoneypot: $("mx_field_cant"),
-  confirm: $("confirm"),
+  hpName: $("hp-name"),
+  hpCant: $("hp-cant"),
   confirmTitle: $("confirm-title"),
-  confirmVote: $("confirm-vote"),
-  standings: $("standings"),
-  editBtn: $("edit-btn"),
-  screenKicker: $("screen-kicker"),
-  screenLine: $("screen-line"),
-  burst: $("burst"),
+  confirmSub: $("confirm-sub"),
+  votes: $("votes"),
+  change: $("change"),
+  card: $("screen-card"),
+  kicker: $("screen-kicker"),
+  line: $("screen-line"),
+  sub: $("screen-sub"),
+  pop: $("pop"),
 };
 
 const state = {
   step: "invite",
+  pick: null,
+  also: null,
   partySize: 1,
-  attend: null,
-  vote: null,
   token: readToken(),
   rsvp: null,
   flags: { rsvpsOpen: true, votingOpen: true },
@@ -59,27 +56,40 @@ const state = {
   saving: false,
   standings: null,
   showtime: null,
+  showing: false,
 };
-
-const CHAIR_COLORS = ["#f0d7a4", "#f2b8a0", "#f0d7a4", "#b7d0ea", "#f0d7a4", "#e7c1d8"];
-const MAP_ADDRESS = EVENT.address;
-const MAP_APPLE = `https://maps.apple.com/?daddr=${encodeURIComponent(MAP_ADDRESS)}&dirflg=d`;
-const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(MAP_ADDRESS)}`;
 
 const ERRORS = {
-  name: "Add a name.",
-  party: "Pick a number from 1 to 10.",
-  attend: "Pick at least one movie.",
-  vote: "Pick one.",
-  note: "Keep the note under 240 characters.",
+  name: "Add your name.",
+  party: "Pick 1 to 10.",
+  attend: "Pick a movie.",
+  vote: "Pick a movie.",
   closed: "RSVPs are closed.",
-  rate: "Wait a few minutes and try again.",
-  not_found: "That RSVP isn't on the list anymore.",
-  network: "Couldn't save just now.",
+  rate: "Too many tries. Give it a few minutes.",
+  not_found: "That RSVP isn't on the list anymore. Send it again.",
+  network: "Couldn't save. Try again.",
 };
+
+const MAP_APPLE = `https://maps.apple.com/?daddr=${encodeURIComponent(EVENT.address)}&dirflg=d`;
+const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(EVENT.address)}`;
+const CHAIR_COLORS = ["#ffcf7d", "#ff9f8a", "#8fc4ff", "#9ee0a0", "#d4a6ff", "#ffe08a"];
+let advanceTimer = 0;
+let swapTimer = 0;
+let lastCard = "";
+
+const scene = createScene({
+  world: $("world"),
+  stage: $("rsvp"),
+  hero: $("hero"),
+  beat: document.querySelector(".vote-hold"),
+  reduced,
+});
 
 initShowtime();
 bind();
+setParty(1);
+wireDirections();
+setStep("invite", { focus: false, scroll: false });
 boot();
 registerWorker();
 
@@ -101,114 +111,126 @@ function writeToken(token) {
   }
 }
 
-function prefersReducedMotion() {
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
+/* Showtime + countdown */
 
 function initShowtime() {
-  els.date.textContent = EVENT.dateLabel;
   const times = eventShowtime(EVENT);
   if (!times) {
     els.showtime.textContent = "after sunset";
-    els.ticks.hidden = true;
-    paintWorld();
     return;
   }
+  state.showtime = times.showtime;
   els.showtime.textContent = formatClock(times.showtime, EVENT.timezone);
   els.showtime.dateTime = times.showtime.toISOString();
-  state.showtime = times.showtime;
-  paintWorld();
-  startCountdown(times.showtime);
+  tickCountdown();
+  window.setInterval(tickCountdown, 1000);
 }
 
-function startCountdown(showtime) {
-  let lastMinuteLabel = "";
-  let timer = 0;
-  const tick = () => {
-    const diff = showtime.getTime() - Date.now();
-    if (diff <= 0) {
-      const elapsed = -diff;
-      const message = elapsed < 3 * 60 * 60 * 1000 ? "It's showtime." : "That was the night.";
-      els.ticks.classList.add("is-message");
-      els.showState.hidden = false;
-      els.showState.textContent = message;
-      if (lastMinuteLabel !== message) {
-        lastMinuteLabel = message;
-        els.cdLabel.textContent = message;
-      }
-      window.clearInterval(timer);
-      paintWorld();
-      return;
+function tickCountdown() {
+  const diff = state.showtime.getTime() - Date.now();
+  let html;
+  let spoken;
+  if (diff <= 0) {
+    const live = -diff < 3 * 3600e3;
+    html = live ? "Now showing" : "That was a good one";
+    spoken = html;
+    if (live !== state.showing) {
+      state.showing = live;
+      paintScreen();
     }
+  } else {
     const total = Math.floor(diff / 1000);
-    const days = Math.floor(total / 86400);
-    const hours = Math.floor((total % 86400) / 3600);
-    const mins = Math.floor((total % 3600) / 60);
-    const secs = total % 60;
-    els.cd.d.textContent = String(days).padStart(2, "0");
-    els.cd.h.textContent = String(hours).padStart(2, "0");
-    els.cd.m.textContent = String(mins).padStart(2, "0");
-    els.cd.s.textContent = String(secs).padStart(2, "0");
-    const spoken = `${days} days, ${hours} hours, ${mins} minutes until showtime`;
-    if (spoken !== lastMinuteLabel) {
-      lastMinuteLabel = spoken;
-      els.cdLabel.textContent = spoken;
-      paintWorld();
-    }
-  };
-  tick();
-  timer = window.setInterval(tick, 1000);
+    const d = Math.floor(total / 86400);
+    const h = Math.floor((total % 86400) / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const parts = [];
+    if (d) parts.push([d, "d"]);
+    if (d || h) parts.push([h, "h"]);
+    parts.push([m, "m"], [s, "s"]);
+    html = parts.map(([n, u]) => `<span><b>${String(n).padStart(u === "d" ? 1 : 2, "0")}</b>${u}</span>`).join("");
+    spoken = `${d ? `${d} days, ` : ""}${h} hours, ${m} minutes until showtime`;
+  }
+  els.countdowns.forEach((el) => {
+    if (el.innerHTML !== html) el.innerHTML = html;
+  });
+  if (els.countdownSr.textContent !== spoken && (diff <= 0 || diff % 60000 < 1000 || !els.countdownSr.textContent)) {
+    els.countdownSr.textContent = spoken;
+  }
 }
+
+/* Directions */
+
+function prefersAppleMaps() {
+  const ua = navigator.userAgent || "";
+  const iPadOs = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+  return /iPad|iPhone|iPod/.test(ua) || iPadOs;
+}
+
+function wireDirections() {
+  const apple = prefersAppleMaps();
+  document.querySelectorAll("[data-dir]").forEach((a) => {
+    a.href = apple ? MAP_APPLE : MAP_GOOGLE;
+  });
+  document.querySelectorAll("[data-dir-alt]").forEach((a) => {
+    a.href = apple ? MAP_GOOGLE : MAP_APPLE;
+    a.textContent = apple ? "Google Maps" : "Apple Maps";
+  });
+}
+
+/* Flow */
 
 function bind() {
+  els.heroCta.addEventListener("click", (event) => {
+    event.preventDefault();
+    scene.goToStage();
+    if (reduced) els.steps.find((s) => s.dataset.step === state.step)?.querySelector("h2")?.focus();
+  });
+
   els.imIn.addEventListener("click", () => {
     if (!state.flags.rsvpsOpen) return;
-    state.editing = false;
-    showStep("pick");
+    setStep("pick");
   });
-  els.cantBtn.addEventListener("click", () => {
+
+  els.cant.addEventListener("click", () => {
     if (!state.flags.rsvpsOpen) return;
-    state.editing = false;
-    state.attend = "none";
-    state.vote = null;
-    showStep("cant");
+    setStep("cant");
   });
+
+  els.keep.addEventListener("click", () => {
+    if (state.rsvp) showConfirm(state.rsvp);
+  });
+
   els.posters.addEventListener("click", (event) => {
     const button = event.target.closest("[data-movie]");
-    if (!button) return;
-    const on = button.getAttribute("aria-pressed") === "true";
-    button.setAttribute("aria-pressed", on ? "false" : "true");
-    syncPickNext();
+    if (!button || state.step !== "pick") return;
+    state.pick = button.dataset.movie;
+    markPosters();
+    button.classList.remove("is-chosen");
+    void button.offsetWidth;
+    button.classList.add("is-chosen");
+    advanceSoon("other");
   });
-  els.pickNext.addEventListener("click", onPickNext);
-  $("pick-back").addEventListener("click", () => leaveToStart());
-  $("prefer-back").addEventListener("click", () => showStep("pick"));
-  $("name-back").addEventListener("click", () => {
-    if (state.attend === "both" && state.flags.votingOpen) showStep("prefer");
-    else showStep("pick");
+
+  els.also.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-also]");
+    if (!button || state.step !== "other") return;
+    state.also = button.dataset.also;
+    markAlso();
+    advanceSoon("name");
   });
-  $("cant-back").addEventListener("click", () => leaveToStart());
-  els.prefer.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-vote]");
-    if (!button) return;
-    state.attend = "both";
-    state.vote = button.dataset.vote;
-    markChoices();
-    showStep("name");
+
+  document.querySelectorAll("[data-back]").forEach((button) => {
+    button.addEventListener("click", goBack);
   });
+
   els.partyDec.addEventListener("click", () => setParty(state.partySize - 1));
   els.partyInc.addEventListener("click", () => setParty(state.partySize + 1));
-  els.name.addEventListener("input", () => {
-    if (els.error.hidden) return;
-    if (nameProblem(els.name.value)) setFieldError(els.name, els.error, "name");
-    else clearFieldError(els.name, els.error);
-  });
-  els.cantName.addEventListener("input", () => {
-    if (els.cantError.hidden) return;
-    if (nameProblem(els.cantName.value)) setFieldError(els.cantName, els.cantError, "name");
-    else clearFieldError(els.cantName, els.cantError);
-  });
-  els.form.addEventListener("submit", (event) => {
+
+  els.name.addEventListener("input", () => clearError(els.name, els.nameError));
+  els.cantName.addEventListener("input", () => clearError(els.cantName, els.cantError));
+
+  els.nameForm.addEventListener("submit", (event) => {
     event.preventDefault();
     submitComing();
   });
@@ -216,410 +238,364 @@ function bind() {
     event.preventDefault();
     submitCant();
   });
-  els.editBtn.addEventListener("click", beginEdit);
-  setParty(1);
-  wireDirections();
-  bindParallax();
+
+  els.change.addEventListener("click", beginEdit);
 }
 
-function leaveToStart() {
-  if (state.rsvp) showConfirm(state.rsvp, { focus: false });
-  else showStep("invite");
+function advanceSoon(step) {
+  window.clearTimeout(advanceTimer);
+  advanceTimer = window.setTimeout(() => setStep(step), reduced ? 0 : 260);
 }
 
-function selectedMovies() {
-  return [...els.posters.querySelectorAll("[data-movie]")]
-    .filter((button) => button.getAttribute("aria-pressed") === "true")
-    .map((button) => button.dataset.movie);
+function goBack() {
+  const back = { pick: "invite", other: "pick", name: "other", cant: "invite" }[state.step];
+  if (back) setStep(back, { back: true });
 }
 
-function syncPickNext() {
-  els.pickNext.disabled = selectedMovies().length === 0;
-}
-
-function pressPosters(attend) {
-  els.posters.querySelectorAll("[data-movie]").forEach((button) => {
-    const id = button.dataset.movie;
-    const on = attend === "both" || attend === id;
-    button.setAttribute("aria-pressed", on ? "true" : "false");
-  });
-  syncPickNext();
-}
-
-function onPickNext() {
-  const picked = selectedMovies();
-  if (picked.length === 0) return;
-  if (picked.length === 1) {
-    state.attend = picked[0];
-    state.vote = picked[0];
-    showStep("name");
-    return;
-  }
-  state.attend = "both";
-  if (!state.flags.votingOpen) {
-    if (state.vote !== "inside_out" && state.vote !== "top_gun") state.vote = null;
-    showStep("name");
-    return;
-  }
-  showStep("prefer");
-}
-
-function markChoices() {
-  els.prefer.querySelectorAll("[data-vote]").forEach((button) => {
-    button.setAttribute("aria-pressed", button.dataset.vote === state.vote ? "true" : "false");
-  });
-}
-
-function showStep(step, { scroll = true } = {}) {
+function setStep(step, { focus = true, scroll = true, back = false } = {}) {
+  const prev = state.step;
   state.step = step;
   document.body.dataset.step = step;
-  document.body.classList.toggle("is-set", step === "confirm");
-  document.body.classList.toggle("form-open", step === "name" || step === "cant");
-  els.pick.hidden = step !== "pick";
-  els.prefer.hidden = step !== "prefer";
-  els.nameStep.hidden = step !== "name";
-  els.cant.hidden = step !== "cant";
-  els.confirm.hidden = step !== "confirm";
-  els.resume.hidden = true;
-  els.resume.classList.remove("is-on");
-  document.documentElement.classList.remove("has-token");
-  syncClosed();
-  paintWorld();
-  if (step === "prefer") markChoices();
-  if (step === "name") {
-    els.submit.textContent = state.saving ? "Saving…" : state.rsvp ? "Update" : "Count me in";
-  }
-  if (step === "cant") {
-    els.cantSubmit.textContent = state.saving ? "Saving…" : state.rsvp ? "Update" : "Save";
-  }
-  if (!scroll) return;
-  const reduce = prefersReducedMotion();
-  if (step === "invite" || step === "confirm") {
-    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
-  } else {
-    const node = document.getElementById(`step-${step}`);
-    node?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-  }
-  window.setTimeout(() => focusStep(step), reduce ? 0 : 280);
+  els.steps.forEach((el) => {
+    const on = el.dataset.step === step;
+    el.classList.toggle("is-active", on);
+    el.classList.toggle("is-leaving-back", !on && back && el.dataset.step === prev);
+    el.inert = !on;
+    el.setAttribute("aria-hidden", on ? "false" : "true");
+  });
+
+  if (step === "invite") syncInvite();
+  if (step === "pick") markPosters();
+  if (step === "other") markAlso();
+  if (step === "name") els.nameSubmit.textContent = state.rsvp ? "Update" : "Count me in";
+  if (step === "cant") els.cantSubmit.textContent = state.rsvp ? "Update" : "Send";
+
+  paintScreen();
+
+  if (scroll && !scene.atStage()) scene.goToStage();
+  if (!focus) return;
+  const active = els.steps.find((el) => el.dataset.step === step);
+  if (step === "name" && !els.name.value) els.name.focus({ preventScroll: true });
+  else if (step === "cant" && !els.cantName.value) els.cantName.focus({ preventScroll: true });
+  else active.querySelector("h2")?.focus({ preventScroll: true });
 }
 
-function focusStep(step) {
-  if (step === "pick") els.pickTitle.focus({ preventScroll: true });
-  else if (step === "prefer") els.preferTitle.focus({ preventScroll: true });
-  else if (step === "name") els.name.focus({ preventScroll: true });
-  else if (step === "cant") els.cantName.focus({ preventScroll: true });
-  else if (step === "confirm") els.confirmTitle.focus({ preventScroll: true });
-}
-
-function syncClosed() {
+function syncInvite() {
   const open = state.flags.rsvpsOpen;
   els.closed.hidden = open;
-  els.imIn.disabled = !open;
-  els.cantBtn.disabled = !open;
-  els.editBtn.hidden = !open;
+  els.inviteActions.hidden = !open;
+  els.keep.hidden = !(state.editing && state.rsvp);
+}
+
+function markPosters() {
+  els.posters.querySelectorAll("[data-movie]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.movie === state.pick));
+  });
+}
+
+function markAlso() {
+  els.also.querySelectorAll("[data-also]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.also === state.also));
+  });
+  const other = otherMovie(state.pick);
+  document.getElementById("other-title").textContent = state.flags.votingOpen
+    ? `And if ${movieTitle(other)} wins?`
+    : `And if it's ${movieTitle(other)}?`;
+}
+
+function otherMovie(id) {
+  return id === "inside_out" ? "top_gun" : "inside_out";
 }
 
 function beginEdit() {
   const rsvp = state.rsvp;
   if (!rsvp || !state.flags.rsvpsOpen) return;
   state.editing = true;
-  state.attend = rsvp.would_attend;
-  state.vote = rsvp.vote;
+  const attend = rsvp.would_attend;
+  state.pick = rsvp.vote || (attend === "inside_out" || attend === "top_gun" ? attend : null);
+  state.also = attend === "both" ? "yes" : attend === "none" ? null : "no";
   els.name.value = rsvp.name || "";
   els.cantName.value = rsvp.name || "";
-  setParty(rsvp.party_size || 1);
-  clearFieldError(els.name, els.error);
-  clearFieldError(els.cantName, els.cantError);
-  if (rsvp.would_attend === "none") {
-    showStep("cant");
-    return;
-  }
-  pressPosters(rsvp.would_attend);
-  showStep("pick");
+  setParty(rsvp.party_size || 1, { quiet: true });
+  clearError(els.name, els.nameError);
+  clearError(els.cantName, els.cantError);
+  setStep("invite");
 }
 
-function prefersAppleMaps() {
-  const ua = navigator.userAgent || "";
-  const platform = navigator.platform || "";
-  const iPadOs = platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return /iPad|iPhone|iPod/.test(ua) || iPadOs;
-}
-
-function wireDirections() {
-  const apple = prefersAppleMaps();
-  const primary = apple ? MAP_APPLE : MAP_GOOGLE;
-  const alt = apple ? MAP_GOOGLE : MAP_APPLE;
-  const altLabel = apple ? "or Google Maps" : "or Apple Maps";
-  document.querySelectorAll("[data-route]").forEach((root) => {
-    const go = root.querySelector(".route-go");
-    const altLink = root.querySelector(".route-alt");
-    const address = root.querySelector(".address");
-    go.href = primary;
-    altLink.href = alt;
-    altLink.textContent = altLabel;
-    address.textContent = MAP_ADDRESS;
-    if (address.dataset.bound) return;
-    address.dataset.bound = "1";
-    address.addEventListener("click", () => {
-      const selected = window.getSelection();
-      if (selected && String(selected).trim()) return;
-      window.location.assign(primary);
-    });
-  });
-}
+/* Party size */
 
 function chairEl(index) {
   const el = document.createElement("span");
   el.className = "chair";
   el.style.setProperty("--chair", CHAIR_COLORS[index % CHAIR_COLORS.length]);
   el.innerHTML =
-    '<svg viewBox="0 0 40 34" aria-hidden="true">' +
-    '<path d="M10 32 L14 16" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
-    '<path d="M28 32 L18 17" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/>' +
-    '<path d="M12 17 H27" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
-    '<path d="M14 16 L16 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
-    '<path d="M23 16 L21 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
-    '<path d="M16 6.5 H21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>' +
-    '<path d="M15 10 H22.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>' +
-    '<path d="M14.2 13.2 H23.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>' +
-    "</svg>";
+    '<svg viewBox="0 0 30 36" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">' +
+    '<path d="M8 3h14l-1.5 15h-11z" fill="currentColor" fill-opacity="0.35"/>' +
+    '<path d="M5 19.5h20" stroke-width="3"/><path d="M8 20l-3 13M22 20l3 13M9 20l13 13M21 20L8 33"/></svg>';
   return el;
 }
 
-function renderChairs(from) {
-  const root = els.chairs;
-  const next = state.partySize;
-  if (!root) return;
-  if (prefersReducedMotion() || from === next) {
-    root.replaceChildren(...Array.from({ length: next }, (_, i) => chairEl(i)));
-    return;
-  }
-  if (next > from) {
-    while (root.children.length < next) {
-      const el = chairEl(root.children.length);
-      el.classList.add("pop");
-      root.append(el);
-    }
-    return;
-  }
-  while (root.children.length > next) {
-    const last = root.lastElementChild;
-    if (root.children.length === next + 1) {
-      last.classList.add("leave");
-      last.addEventListener("animationend", () => last.remove(), { once: true });
-      break;
-    }
-    last.remove();
-  }
-}
-
-function setParty(next) {
+function setParty(next, { quiet = false } = {}) {
   const prev = state.partySize;
   state.partySize = Math.min(10, Math.max(1, next));
-  els.partyValue.textContent = peopleLabel(state.partySize);
+  els.partyValue.textContent = String(state.partySize);
+  els.partyValue.setAttribute("aria-label", state.partySize === 1 ? "1 person" : `${state.partySize} people`);
   els.partyDec.disabled = state.partySize <= 1;
   els.partyInc.disabled = state.partySize >= 10;
-  renderChairs(prev);
+  const root = els.chairs;
+  const n = state.partySize;
+  if (quiet || reduced || root.children.length === 0) {
+    root.replaceChildren(...Array.from({ length: n }, (_, i) => chairEl(i)));
+    return;
+  }
+  if (n > prev) {
+    while (root.children.length < n) {
+      const el = chairEl(root.children.length);
+      el.classList.add("is-new");
+      root.append(el);
+    }
+  } else {
+    [...root.querySelectorAll(".chair.leave")].forEach((el) => el.remove());
+    while (root.children.length > n) {
+      const last = root.lastElementChild;
+      if (root.children.length === n + 1) {
+        last.classList.add("leave");
+        last.addEventListener("animationend", () => last.remove(), { once: true });
+        break;
+      }
+      last.remove();
+    }
+  }
 }
 
-function nameProblem(value) {
-  const name = value.trim().replace(/\s+/g, " ");
-  if (!name || name.length > 60) return "name";
-  return "";
+/* Screen */
+
+function cardFor() {
+  const time = els.showtime.textContent;
+  const r = state.rsvp;
+  switch (state.step) {
+    case "invite":
+      if (state.showing) return ["Now showing", winnerTitle(), ""];
+      return ["", "You in?", `Sat, Oct 10 · ${time}`];
+    case "pick":
+      return state.flags.votingOpen ? ["", "Your pick?", "Most votes wins"] : ["", "Coming for?", ""];
+    case "other": {
+      const other = shortTitle(otherMovie(state.pick));
+      return state.flags.votingOpen ? ["And if", `${other} wins?`, ""] : ["And if it's", `${other}?`, ""];
+    }
+    case "name":
+      return ["", "Who's coming?", ""];
+    case "cant":
+      return ["", "We'll miss you.", ""];
+    case "confirm": {
+      if (!r) return ["", "", ""];
+      if (r.would_attend === "none") return [`Thanks, ${firstName(r.name)}`, "Next time!", ""];
+      const extra = Math.max(0, Number(r.party_size) - 1);
+      return ["Starring", extra ? `${r.name} + ${extra}` : r.name, ""];
+    }
+    default:
+      return ["", "", ""];
+  }
 }
 
-function clearFieldError(input, error) {
-  error.hidden = true;
-  error.textContent = "";
+function paintScreen() {
+  const [kicker, line, sub] = cardFor();
+  const key = `${kicker}|${line}|${sub}`;
+  if (key === lastCard) return;
+  const first = !lastCard;
+  lastCard = key;
+  const apply = () => {
+    els.kicker.textContent = kicker;
+    els.line.textContent = line;
+    els.line.classList.toggle("is-long", line.length > 13);
+    els.sub.textContent = sub;
+    els.card.classList.remove("is-swapping");
+  };
+  window.clearTimeout(swapTimer);
+  if (first || reduced || document.body.dataset.screen !== "card") {
+    apply();
+    return;
+  }
+  els.card.classList.add("is-swapping");
+  swapTimer = window.setTimeout(apply, 180);
+}
+
+function firstName(name) {
+  return String(name || "").trim().split(/\s+/)[0] || "friend";
+}
+
+function winnerTitle() {
+  const v = state.standings?.votes || {};
+  const io = Number(v.inside_out) || 0;
+  const tg = Number(v.top_gun) || 0;
+  if (io === tg) return "Movie Night";
+  return io > tg ? "Inside Out" : "Top Gun: Maverick";
+}
+
+function popcorn() {
+  if (reduced) return;
+  const root = els.pop;
+  root.replaceChildren();
+  for (let i = 0; i < 18; i += 1) {
+    const k = document.createElement("i");
+    const angle = (-90 + (i - 8.5) * 9) * (Math.PI / 180);
+    const dist = 16 + (i % 5) * 4;
+    k.style.setProperty("--x", `calc(${(Math.cos(angle) * dist * 1.6).toFixed(1)} * var(--s))`);
+    k.style.setProperty("--y", `calc(${(Math.sin(angle) * dist).toFixed(1)} * var(--s))`);
+    k.style.setProperty("--rot", `${(i % 2 ? 1 : -1) * (120 + i * 20)}deg`);
+    k.style.setProperty("--delay", `${(i % 6) * 0.04}s`);
+    root.append(k);
+  }
+  window.setTimeout(() => root.replaceChildren(), 1700);
+}
+
+/* Confirm */
+
+function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = {}) {
+  state.rsvp = rsvp;
+  state.editing = false;
+  const coming = rsvp.would_attend !== "none";
+  els.confirmTitle.textContent = coming ? "See you Saturday." : "We'll miss you.";
+  if (!coming) {
+    els.confirmSub.textContent = "";
+  } else if (rsvp.would_attend === "both") {
+    els.confirmSub.textContent = rsvp.vote ? `Voted ${movieTitle(rsvp.vote)} · in for either` : "In for either movie";
+  } else {
+    els.confirmSub.textContent = `${movieTitle(rsvp.would_attend)} only`;
+  }
+  els.heroCtaLabel.textContent = coming ? "You're in" : "Your RSVP";
+  setStep("confirm", { focus, scroll });
+  renderVotes();
+  if (celebrate && coming) window.setTimeout(popcorn, 200);
+}
+
+function renderVotes() {
+  const v = state.standings?.votes || {};
+  const counts = { inside_out: Number(v.inside_out) || 0, top_gun: Number(v.top_gun) || 0 };
+  const max = Math.max(counts.inside_out, counts.top_gun, 1);
+  const mine = state.rsvp?.vote || null;
+  els.votes.querySelectorAll(".bucket").forEach((bucket) => {
+    const id = bucket.dataset.movie;
+    const n = counts[id];
+    bucket.querySelector("b").textContent = String(n);
+    bucket.classList.toggle("is-mine", id === mine);
+    const fill = n ? 0.35 + 0.65 * (n / max) : 0;
+    const corn = bucket.querySelector(".corn");
+    requestAnimationFrame(() => {
+      corn.style.transform = `translateY(${((1 - fill) * 100).toFixed(1)}%)`;
+    });
+  });
+  els.votes.setAttribute(
+    "aria-label",
+    `Votes so far: Inside Out ${counts.inside_out}, Top Gun: Maverick ${counts.top_gun}.`,
+  );
+}
+
+/* Saving */
+
+function nameValue(input) {
+  return input.value.trim().replace(/\s+/g, " ");
+}
+
+function setError(input, el, code) {
+  el.hidden = false;
+  el.textContent = ERRORS[code] || ERRORS.network;
+  if (code === "name") input.setAttribute("aria-invalid", "true");
+}
+
+function clearError(input, el) {
+  if (el.hidden) return;
+  el.hidden = true;
+  el.textContent = "";
   input.removeAttribute("aria-invalid");
 }
 
-function setFieldError(input, error, code) {
-  error.hidden = false;
-  error.textContent = ERRORS[code] || ERRORS.network;
-  if (code === "name") input.setAttribute("aria-invalid", "true");
-  else input.removeAttribute("aria-invalid");
-}
-
-function showConfirm(rsvp, { focus = true, celebrate = false } = {}) {
-  state.rsvp = rsvp;
-  state.editing = false;
-  state.attend = rsvp.would_attend;
-  state.vote = rsvp.vote;
-  const coming = rsvp.would_attend && rsvp.would_attend !== "none";
-  els.confirmTitle.textContent = coming ? "See you Saturday." : "We'll miss you.";
-  if (!coming) {
-    els.confirmVote.hidden = true;
-    els.confirmVote.textContent = "";
-  } else if (rsvp.would_attend === "both") {
-    els.confirmVote.hidden = false;
-    els.confirmVote.textContent = rsvp.vote ? `Both · ${movieTitle(rsvp.vote)}` : "Both";
-  } else {
-    els.confirmVote.hidden = false;
-    els.confirmVote.textContent = movieTitle(rsvp.would_attend);
-  }
-  document.body.dataset.vote = rsvp.vote || "";
-  showStep("confirm", { scroll: focus });
-  if (celebrate && coming) burst();
-  if (!focus) paintWorld();
-}
-
-function renderStandings(standings, myVote) {
-  if (!standings) return;
-  state.standings = standings;
-  paintWorld();
-  const root = els.standings;
-  root.replaceChildren();
-  const heading = document.createElement("h3");
-  heading.textContent = "Votes";
-  root.append(heading);
-  const votes = standings.votes || {};
-  const inside = Number(votes.inside_out) || 0;
-  const mav = Number(votes.top_gun) || 0;
-  const total = inside + mav;
-  const board = document.createElement("div");
-  board.className = "buckets";
-  const fills = [];
-  [
-    ["inside_out", "Inside Out", inside],
-    ["top_gun", "Top Gun: Maverick", mav],
-  ].forEach(([id, title, count]) => {
-    const card = document.createElement("div");
-    card.className = "bucket-card";
-    const cup = document.createElement("div");
-    cup.className = "cup";
-    cup.setAttribute("role", "presentation");
-    const kernels = document.createElement("div");
-    kernels.className = "kernels";
-    cup.append(kernels);
-    const label = document.createElement("p");
-    label.className = "bucket-label";
-    const name = document.createElement("span");
-    name.textContent = title;
-    if (id === myVote) {
-      const you = document.createElement("span");
-      you.className = "you";
-      you.textContent = "You";
-      name.append(you);
-    }
-    const num = document.createElement("b");
-    num.textContent = String(count);
-    label.append(name, num);
-    card.append(cup, label);
-    board.append(card);
-    fills.push([kernels, total ? (count / total) * 100 : 0]);
-  });
-  root.append(board);
-  requestAnimationFrame(() => {
-    fills.forEach(([kernels, pct]) => {
-      kernels.style.height = `${Math.max(0, Math.min(78, pct * 0.78))}%`;
-      kernels.classList.toggle("is-pop", pct > 0);
-    });
-  });
-  root.setAttribute("aria-label", `Inside Out ${inside} votes. Top Gun: Maverick ${mav} votes.`);
-}
-
-async function save(payload, errorEl, input, button) {
-  if (state.saving) return;
-  if (!state.flags.rsvpsOpen) {
-    setFieldError(input, errorEl, "closed");
-    return;
-  }
-  state.saving = true;
-  button.disabled = true;
-  button.textContent = "Saving…";
-  button.setAttribute("aria-busy", "true");
-  try {
-    const { rpc } = await import("./api.js");
-    const data = await rpc("movie_submit_rsvp", payload);
-    if (!data || data.ok === false) {
-      const code = data?.error || "network";
-      if (code === "not_found") writeToken("");
-      if (code === "closed") {
-        state.flags.rsvpsOpen = false;
-        showStep("invite");
-      }
-      setFieldError(input, errorEl, code);
-      return;
-    }
-    writeToken(data.token || state.token);
-    if (data.standings) {
-      state.flags.rsvpsOpen = data.standings.rsvps_open !== false;
-      state.flags.votingOpen = data.standings.voting_open !== false;
-    }
-    showConfirm(data.rsvp, { celebrate: true });
-    renderStandings(data.standings, data.rsvp?.vote);
-  } catch (error) {
-    console.error(error);
-    setFieldError(input, errorEl, "network");
-  } finally {
-    state.saving = false;
-    button.disabled = false;
-    button.removeAttribute("aria-busy");
-    els.submit.textContent = state.rsvp ? "Update" : "Count me in";
-    els.cantSubmit.textContent = state.rsvp ? "Update" : "Save";
-  }
-}
-
 function submitComing() {
-  const problem = nameProblem(els.name.value);
-  if (problem) {
-    setFieldError(els.name, els.error, problem);
+  const name = nameValue(els.name);
+  if (!name || name.length > 60) {
+    setError(els.name, els.nameError, "name");
     els.name.focus();
     return;
   }
-  if (!state.attend || state.attend === "none") {
-    showStep("pick");
-    return;
-  }
-  if (state.attend === "both" && state.flags.votingOpen && state.vote !== "inside_out" && state.vote !== "top_gun") {
-    showStep("prefer");
-    return;
-  }
-  clearFieldError(els.name, els.error);
-  const vote =
-    state.attend === "both" ? state.vote : state.attend;
+  if (!state.pick) return setStep("pick");
+  if (!state.also) return setStep("other");
+  const attend = state.also === "yes" ? "both" : state.pick;
   save(
     {
-      p_name: els.name.value.trim().replace(/\s+/g, " "),
+      p_name: name,
       p_party_size: state.partySize,
-      p_would_attend: state.attend,
-      p_vote: vote,
+      p_would_attend: attend,
+      p_vote: state.pick,
       p_note: "",
-      p_honeypot: els.honeypot.value,
+      p_honeypot: els.hpName.value,
       p_token: state.token || null,
     },
-    els.error,
     els.name,
-    els.submit,
+    els.nameError,
+    els.nameSubmit,
   );
 }
 
 function submitCant() {
-  const problem = nameProblem(els.cantName.value);
-  if (problem) {
-    setFieldError(els.cantName, els.cantError, problem);
+  const name = nameValue(els.cantName);
+  if (!name || name.length > 60) {
+    setError(els.cantName, els.cantError, "name");
     els.cantName.focus();
     return;
   }
-  clearFieldError(els.cantName, els.cantError);
-  state.attend = "none";
-  state.vote = null;
   save(
     {
-      p_name: els.cantName.value.trim().replace(/\s+/g, " "),
+      p_name: name,
       p_party_size: 1,
       p_would_attend: "none",
       p_vote: null,
       p_note: "",
-      p_honeypot: els.cantHoneypot.value,
+      p_honeypot: els.hpCant.value,
       p_token: state.token || null,
     },
-    els.cantError,
     els.cantName,
+    els.cantError,
     els.cantSubmit,
   );
 }
+
+async function save(payload, input, errorEl, button) {
+  if (state.saving) return;
+  state.saving = true;
+  const label = button.textContent;
+  button.setAttribute("aria-busy", "true");
+  input.blur();
+  try {
+    const { rpc } = await import("./api.js");
+    let data = await rpc("movie_submit_rsvp", payload);
+    if (data?.ok === false && data.error === "not_found" && payload.p_token) {
+      writeToken("");
+      data = await rpc("movie_submit_rsvp", { ...payload, p_token: null });
+    }
+    if (!data || data.ok === false) {
+      const code = data?.error || "network";
+      if (code === "closed") state.flags.rsvpsOpen = false;
+      setError(input, errorEl, code);
+      return;
+    }
+    writeToken(data.token || state.token);
+    if (data.standings) {
+      state.standings = data.standings;
+      state.flags.rsvpsOpen = data.standings.rsvps_open !== false;
+      state.flags.votingOpen = data.standings.voting_open !== false;
+    }
+    showConfirm(data.rsvp, { celebrate: true });
+  } catch (error) {
+    console.error(error);
+    setError(input, errorEl, "network");
+  } finally {
+    state.saving = false;
+    button.removeAttribute("aria-busy");
+    button.textContent = label;
+  }
+}
+
+/* Boot */
 
 async function boot() {
   let rpc;
@@ -627,118 +603,31 @@ async function boot() {
     ({ rpc } = await import("./api.js"));
   } catch (error) {
     console.error(error);
-    document.documentElement.classList.remove("has-token");
-    els.resume.hidden = true;
     return;
   }
+  const settle = (promise) => promise.then((data) => ({ ok: true, data }), () => ({ ok: false, data: null }));
+  const [standings, mine] = await Promise.all([
+    settle(rpc("movie_get_standings")),
+    state.token ? settle(rpc("movie_get_rsvp", { p_token: state.token })) : Promise.resolve(null),
+  ]);
 
-  const standingsPromise = rpc("movie_get_standings").then(
-    (data) => ({ ok: true, data }),
-    () => ({ ok: false, data: null }),
-  );
-  const minePromise = state.token
-    ? rpc("movie_get_rsvp", { p_token: state.token }).then(
-        (data) => ({ ok: true, data }),
-        () => ({ ok: false, data: null }),
-      )
-    : Promise.resolve(null);
-  const [standingsResult, mineResult] = await Promise.all([standingsPromise, minePromise]);
-
-  const standings = standingsResult.data;
-  if (standings && standings.ok !== false) {
-    state.standings = standings;
-    state.flags.rsvpsOpen = standings.rsvps_open !== false;
-    state.flags.votingOpen = standings.voting_open !== false;
+  if (standings.ok && standings.data && standings.data.ok !== false) {
+    state.standings = standings.data;
+    state.flags.rsvpsOpen = standings.data.rsvps_open !== false;
+    state.flags.votingOpen = standings.data.voting_open !== false;
   }
 
-  if (mineResult?.ok && mineResult.data?.ok !== false && !mineResult.data?.rsvp) {
-    writeToken("");
-  }
+  if (mine?.ok && mine.data?.ok !== false && !mine.data?.rsvp) writeToken("");
 
-  const rsvp = mineResult?.data?.rsvp || null;
-  if (rsvp) {
-    showConfirm(rsvp, { focus: false });
-    renderStandings(standings, rsvp.vote);
+  document.documentElement.classList.remove("has-token");
+  const rsvp = mine?.data?.rsvp || null;
+  if (rsvp && state.step === "invite") {
+    showConfirm(rsvp, { focus: false, scroll: false });
     return;
   }
-
-  showStep("invite", { scroll: false });
-  syncClosed();
-  if (mineResult && !mineResult.ok) {
-    els.resume.hidden = false;
-    els.resume.classList.add("is-on");
-    els.resume.textContent = ERRORS.network;
-  }
-}
-
-function winnerTitle(standings) {
-  const votes = standings?.votes || {};
-  const inside = Number(votes.inside_out) || 0;
-  const mav = Number(votes.top_gun) || 0;
-  if (!inside && !mav) return "Movie night";
-  if (inside === mav) return "It's a tie";
-  return inside > mav ? "Inside Out" : "Top Gun";
-}
-
-function paintWorld() {
-  const phase = applySky(state.showtime);
-  const showing = phase === "showing";
-  document.body.dataset.phase = showing ? "showing" : "waiting";
-  const rsvp = state.rsvp;
-  const starring = state.step === "confirm" && rsvp && rsvp.would_attend !== "none";
-  if (starring) {
-    const extra = Math.max(0, Number(rsvp.party_size) - 1);
-    els.screenKicker.textContent = "Starring";
-    els.screenLine.textContent = extra ? `${rsvp.name} + ${extra}` : rsvp.name;
-    document.body.classList.add("credits-on");
-  } else if (showing) {
-    els.screenKicker.textContent = "Now showing";
-    els.screenLine.textContent = winnerTitle(state.standings);
-    document.body.classList.add("credits-on");
-  } else if (els.screenKicker) {
-    els.screenKicker.textContent = "";
-    els.screenLine.textContent = "";
-    document.body.classList.remove("credits-on");
-  }
-}
-
-function burst() {
-  const root = els.burst;
-  if (!root || prefersReducedMotion()) return;
-  const colors = ["#f2c14e", "#6aa6e0", "#e07a6a", "#7dba7a", "#c9a0e0", "#f6e7a8"];
-  root.replaceChildren();
-  root.hidden = false;
-  for (let i = 0; i < 10; i += 1) {
-    const bit = document.createElement("i");
-    bit.style.setProperty("--a", `${i * 36 - 10}deg`);
-    bit.style.setProperty("--d", `${22 + (i % 4) * 9}px`);
-    bit.style.setProperty("--c", colors[i % colors.length]);
-    root.append(bit);
-  }
-  window.setTimeout(() => {
-    root.hidden = true;
-    root.replaceChildren();
-  }, 800);
-}
-
-function bindParallax() {
-  if (prefersReducedMotion()) return;
-  let ticking = false;
-  const apply = () => {
-    const y = Math.min(window.scrollY, 420);
-    document.documentElement.style.setProperty("--py", y.toFixed(1));
-    ticking = false;
-  };
-  apply();
-  window.addEventListener(
-    "scroll",
-    () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(apply);
-    },
-    { passive: true },
-  );
+  if (rsvp) state.rsvp = rsvp;
+  if (state.step === "invite") syncInvite();
+  paintScreen();
 }
 
 function registerWorker() {

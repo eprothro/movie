@@ -13,8 +13,8 @@ export const EVENT = {
   timezone: "America/Chicago",
 
   movies: [
-    { id: "inside_out", title: "Inside Out", year: "2015" },
-    { id: "top_gun", title: "Top Gun: Maverick", year: "2022" },
+    { id: "inside_out", title: "Inside Out", short: "Inside Out", year: "2015" },
+    { id: "top_gun", title: "Top Gun: Maverick", short: "Top Gun", year: "2022" },
   ],
 
   supabaseUrl: "https://yhiynwocgqskcmldrmyd.supabase.co",
@@ -26,6 +26,10 @@ export const PIN_KEY = "prothro-movie-admin-pin";
 
 export function movieTitle(id) {
   return EVENT.movies.find((movie) => movie.id === id)?.title ?? "";
+}
+
+export function shortTitle(id) {
+  return EVENT.movies.find((movie) => movie.id === id)?.short ?? "";
 }
 
 export function peopleLabel(count) {
