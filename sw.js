@@ -1,4 +1,4 @@
-const CACHE = "movie-night-v12";
+const CACHE = "movie-night-v14";
 const ASSETS = [
   "/",
   "/index.html",
@@ -23,8 +23,8 @@ const ASSETS = [
   "/assets/scene/fence.svg",
   "/assets/scene/grass.svg",
   "/assets/scene/meadow.svg",
-  "/assets/posters/inside-out.webp",
-  "/assets/posters/inside-out-2x.webp",
+  "/assets/posters/princess-bride.webp",
+  "/assets/posters/princess-bride-2x.webp",
   "/assets/posters/top-gun-maverick.webp",
   "/assets/posters/top-gun-maverick-2x.webp",
   "/favicon.svg",
@@ -38,7 +38,9 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      .then((cache) => cache.addAll(ASSETS))
+      // Skip the HTTP cache (Pages serves max-age=600), so a new version never
+      // installs with the previous deploy's files.
+      .then((cache) => cache.addAll(ASSETS.map((url) => new Request(url, { cache: "reload" }))))
       .then(() => self.skipWaiting()),
   );
 });
@@ -58,8 +60,9 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
+  // Revalidate, so a deploy can't come down as a mix of old and new files.
   event.respondWith(
-    fetch(request)
+    fetch(request, { cache: "no-cache" })
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();

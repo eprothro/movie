@@ -68,9 +68,12 @@ html {
   color: var(--ink);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  /* A hard flick rests on the landing or the screen, instead of sailing past.
-     A slow drag can still stop in between, so the walk stays scrubbed. */
+  /* Proximity, not mandatory: a scroll that ends near the screen settles on
+     it, and a slow drag can still rest anywhere in the field. */
   scroll-snap-type: y proximity;
+  /* The scene is fixed and the page scrolls over it, so a rubber-band bounce
+     would slide the posters up over the screen. */
+  overscroll-behavior-y: none;
 }
 
 html.is-walking {
@@ -505,10 +508,37 @@ a {
   opacity: 0;
 }
 
-.leader[data-n="3"] b[data-n="3"],
-.leader[data-n="2"] b[data-n="2"],
-.leader[data-n="1"] b[data-n="1"] {
-  opacity: 0.8;
+/* js/scene.js adds .is-running when the scroll lights the screen and sets
+   --beat. The hand sweeps once per number; its animationend opens the ask. */
+.leader.is-running .hand {
+  animation: sweep var(--beat, 0.9s) linear 3;
+}
+
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.leader.is-running b {
+  animation: beat var(--beat, 0.9s) step-end;
+}
+
+.leader.is-running b[data-n="2"] {
+  animation-delay: var(--beat, 0.9s);
+}
+
+/* The 1 holds while the leader fades out under the card. */
+.leader.is-running b[data-n="1"] {
+  animation-delay: calc(2 * var(--beat, 0.9s));
+  animation-fill-mode: forwards;
+}
+
+@keyframes beat {
+  from,
+  to {
+    opacity: 0.8;
+  }
 }
 
 [data-screen="leader"] .leader {
@@ -1038,9 +1068,15 @@ h1 em {
 
 .stage {
   position: relative;
+  /* Exactly one viewport, toolbar up or down, so the end of the page is the
+     stage top. With svh the page fell short of it once the toolbar hid; with
+     lvh it ran past it while the toolbar showed. */
   min-height: 100svh;
+  min-height: 100dvh;
   padding-bottom: calc(var(--safe-b) + 16px);
   scroll-snap-align: start;
+  /* A flick from the landing stops here even when a tall step (the name
+     form, the confirmation) makes the stage longer than the screen. */
   scroll-snap-stop: always;
 }
 

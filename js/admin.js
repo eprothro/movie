@@ -47,6 +47,8 @@ $("lock").addEventListener("click", () => {
 });
 toggleRsvp.addEventListener("click", () => flipFlag("rsvp"));
 toggleVote.addEventListener("click", () => flipFlag("vote"));
+$("reset").addEventListener("click", resetVotes);
+$("reset-cancel").addEventListener("click", () => armReset(false));
 
 document.addEventListener("keydown", (event) => {
   if (pinScreen.hidden || locked) return;
@@ -251,11 +253,13 @@ function attendLine(row) {
 function renderBook(data) {
   applyFlags(data.rsvps_open !== false, data.voting_open !== false);
   const votes = data.votes || {};
-  const cards = [
-    ["inside_out", "If Inside Out", Number(data.if_inside_out) || 0, Number(votes.inside_out) || 0],
-    ["top_gun", "If Top Gun", Number(data.if_top_gun) || 0, Number(votes.top_gun) || 0],
-  ];
-  const lead = cards[0][3] === cards[1][3] ? "" : cards[0][3] > cards[1][3] ? "inside_out" : "top_gun";
+  const cards = EVENT.movies.map((movie) => [
+    movie.id,
+    `If ${movie.short}`,
+    Number(data[`if_${movie.id}`]) || 0,
+    Number(votes[movie.id]) || 0,
+  ]);
+  const lead = cards[0][3] === cards[1][3] ? "" : cards[0][3] > cards[1][3] ? cards[0][0] : cards[1][0];
   projection.replaceChildren();
   cards.forEach(([id, label, people, count]) => {
     const card = document.createElement("div");
@@ -380,6 +384,49 @@ function renderBook(data) {
     article.append(actions);
     list.append(article);
   });
+}
+
+function armReset(armed) {
+  const button = $("reset");
+  if (armed) button.dataset.armed = "1";
+  else delete button.dataset.armed;
+  button.textContent = armed ? "Delete all" : "Reset votes";
+  $("reset-note").hidden = !armed;
+  $("reset-cancel").hidden = !armed;
+}
+
+async function resetVotes() {
+  if (!savedPin || busy) return;
+  if (!$("reset").dataset.armed) {
+    armReset(true);
+    return;
+  }
+  busy = true;
+  $("reset").disabled = true;
+  bookError.hidden = true;
+  try {
+    const result = await rpc("movie_admin_reset", { p_pin: savedPin });
+    if (!result || result.ok === false) {
+      if (result?.error === "pin" || result?.error === "locked" || result?.error === "pin_not_set") {
+        savedPin = "";
+        writePin("");
+        showPin(result);
+        return;
+      }
+      bookError.hidden = false;
+      bookError.textContent = "Couldn't reset the votes.";
+      return;
+    }
+    armReset(false);
+    await load();
+  } catch (error) {
+    console.error(error);
+    bookError.hidden = false;
+    bookError.textContent = "Couldn't reset the votes.";
+  } finally {
+    busy = false;
+    $("reset").disabled = false;
+  }
 }
 
 async function flipFlag(which) {

@@ -1,13 +1,21 @@
 // Camera dolly through the pasture. Scroll progress p (0 at the top, 1 when
 // the RSVP stage reaches the top of the viewport) walks the camera toward the
-// screen. Every frame writes transforms only; layout is read on resize.
+// screen. The camera tracks the scroll 1:1, so the fixed scene and the page
+// that scrolls over it never drift apart, whatever the scroll speed. Each
+// frame reads scrollY once and writes only transform and opacity; layout is
+// read only when a ResizeObserver reports a real size change.
 
 const TILT = 0.11; // horizon starts this much lower, as if looking up
 const LIT_AT = 0.42;
+// The lights go out a little earlier than they come on, so a drag that
+// hovers at the threshold does not flicker the screen.
+const DARK_AT = 0.36;
 const LEADER_STEP = 0.16;
 const CARD_AT = LIT_AT + LEADER_STEP * 3;
-// Each number of the film leader, once the scroll has lit the screen.
+// Each number of the film leader, once the scroll has lit the screen. The
+// leader itself is a CSS animation; this sets its --beat.
 const BEAT_MS = 900;
+const HINT_OUT_MS = 380;
 
 const clamp = (n, a = 0, b = 1) => Math.min(b, Math.max(a, n));
 const smooth = (a, b, x) => {
@@ -132,25 +140,19 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
   const fore = world.querySelector("#fore");
   const root = document.body;
 
-  let W = 0;
-  let horizon = 0.42;
-  let H = 0;
   let hy = 0;
   let drop = 0;
   let stageTop = 1;
   let faceBottom = 0;
   let lensY = 0;
-  let target = reduced ? 1 : 0;
-  let current = target;
-  let raf = 0;
-  let lastT = 0;
+  let frame = 0;
   let screenState = "";
-  let leaderN = "";
   let lit = null;
   // idle until the lights, then playing, done, or skip (returning guest / reduced).
   let leaderMode = reduced ? "skip" : "idle";
-  let handRaf = 0;
+  let leaderTimer = 0;
   let hint = 0;
+  let hintOut = null;
   let started = reduced;
   let walking = null;
   const written = new Map();
@@ -163,25 +165,27 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
     else el.style[prop] = value;
   };
 
+  leader.style.setProperty("--beat", `${BEAT_MS}ms`);
+
+  const progress = () => (reduced ? 1 : clamp(window.scrollY / stageTop));
+
   function measure() {
-    W = world.clientWidth;
-    H = world.clientHeight;
-    horizon = Number(getComputedStyle(document.documentElement).getPropertyValue("--hz")) || 0.42;
-    hy = H * horizon;
-    drop = H * TILT;
-    layers.forEach((layer) => {
-      const { el } = layer;
-      layer.el.style.transformOrigin = `${(W / 2 - el.offsetLeft).toFixed(1)}px ${(hy - el.offsetTop).toFixed(1)}px`;
-      layer.last = "";
-    });
+    // All reads before any write, so the layer loop never forces a layout.
+    const H = world.clientHeight;
+    const W = world.clientWidth;
+    const horizon = Number(getComputedStyle(document.documentElement).getPropertyValue("--hz")) || 0.42;
+    const offsets = layers.map(({ el }) => [el.offsetLeft, el.offsetTop]);
     faceBottom = screenLayer.offsetTop + face.offsetTop + face.offsetHeight;
     lensY = projector.offsetTop + projector.offsetHeight * (45 / 110);
     stageTop = Math.max(1, stage.getBoundingClientRect().top + window.scrollY);
-    target = reduced ? 1 : clamp(window.scrollY / stageTop);
-    current = target;
-    if (window.scrollY > 8) start();
-    render(current + hint);
-    textFx(target);
+    hy = H * horizon;
+    drop = H * TILT;
+    layers.forEach((layer, i) => {
+      const [x, y] = offsets[i];
+      layer.el.style.transformOrigin = `${(W / 2 - x).toFixed(1)}px ${(hy - y).toFixed(1)}px`;
+      layer.last = "";
+    });
+    update();
   }
 
   function scaleFor(layer, e) {
@@ -228,16 +232,21 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
       write(beam, "transform", `translate3d(0,${yTop.toFixed(1)}px,0) scale(${screenScale.toFixed(4)},${(span / 100).toFixed(4)})`);
     }
 
-    const crossed = reduced || e >= LIT_AT;
-    if (crossed !== lit) {
-      lit = crossed;
-      root.classList.toggle("lit", crossed);
+    const on = reduced || (lit ? e >= DARK_AT : e >= LIT_AT);
+    if (on !== lit) {
+      lit = on;
+      root.classList.toggle("lit", on);
     }
-
-    if (leaderMode === "idle" && e >= LIT_AT) playLeader();
-    else if (leaderMode === "skip" && crossed) showScreen("card");
-    else if (leaderMode === "done") showScreen("card");
-    else if (!crossed && leaderMode !== "playing") showScreen("off");
+    if (!on) {
+      // Walked back out of the light before the 1: rewind, so the guest
+      // sees the whole leader when they come back.
+      if (leaderMode === "playing") stopLeader("idle");
+      showScreen("off");
+    } else if (leaderMode === "idle") {
+      playLeader();
+    } else if (leaderMode !== "playing") {
+      showScreen("card");
+    }
   }
 
   function showScreen(state) {
@@ -247,43 +256,44 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
     onScreen?.(state);
   }
 
-  // Time-based, so a flick that has already passed the screen still plays
-  // 3, then 2, then 1, and only then the ask.
+  // The leader runs on the clock, as a CSS animation, so a flick that has
+  // already reached the screen still plays 3, then 2, then 1, and only then
+  // the ask. It stays on the compositor while the scroll keeps the main
+  // thread busy.
   function playLeader() {
-    if (leaderMode !== "idle") return;
     leaderMode = "playing";
-    const t0 = performance.now();
+    leader.classList.add("is-running");
     showScreen("leader");
-    const step = (now) => {
-      if (leaderMode !== "playing") return;
-      const seg = (now - t0) / BEAT_MS;
-      if (seg >= 3) {
-        leaderMode = "done";
-        showScreen("card");
-        return;
-      }
-      const n = String(3 - Math.floor(seg));
-      if (n !== leaderN) {
-        leaderN = n;
-        leader.dataset.n = n;
-      }
-      write(hand, "transform", `rotate(${((seg % 1) * 360).toFixed(1)}deg)`);
-      handRaf = requestAnimationFrame(step);
-    };
-    handRaf = requestAnimationFrame(step);
+    window.clearTimeout(leaderTimer);
+    // animationend is the cue; this only guarantees the ask opens if it never fires.
+    leaderTimer = window.setTimeout(finishLeader, BEAT_MS * 3 + 800);
   }
+
+  function finishLeader() {
+    if (leaderMode !== "playing") return;
+    window.clearTimeout(leaderTimer);
+    leaderMode = "done";
+    showScreen("card");
+  }
+
+  function stopLeader(mode) {
+    window.clearTimeout(leaderTimer);
+    leader.classList.remove("is-running");
+    leaderMode = mode;
+  }
+
+  hand.addEventListener("animationend", finishLeader);
 
   function skipLeader() {
     if (leaderMode === "done" || leaderMode === "skip") return;
-    leaderMode = "skip";
-    cancelAnimationFrame(handRaf);
-    if (lit || reduced) showScreen("card");
+    stopLeader("skip");
+    if (lit) showScreen("card");
   }
 
   function allowLeader() {
     if (leaderMode !== "skip" || reduced) return;
-    leaderMode = "idle";
-    if (current >= LIT_AT || target >= LIT_AT) playLeader();
+    // Already at a lit screen with the ask up: don't take it back for a leader.
+    leaderMode = lit ? "done" : "idle";
   }
 
   function textFx(p) {
@@ -292,27 +302,29 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
     write(hero, "opacity", (1 - smooth(0.02, 0.14, p)).toFixed(2));
   }
 
-  function tick(time) {
-    const dt = lastT ? Math.min(64, time - lastT) : 16.7;
-    lastT = time;
-    const k = 1 - Math.pow(1 - 0.2, dt / 16.7);
-    current += (target - current) * k;
-    if (Math.abs(target - current) < 0.0004) current = target;
-    render(current + hint);
-    if (current !== target) {
-      raf = requestAnimationFrame(tick);
-    } else {
-      raf = 0;
-      lastT = 0;
+  function update() {
+    frame = 0;
+    const p = progress();
+    if (!started && window.scrollY > 8) start();
+    if (hintOut) {
+      const t = Math.min(1, (performance.now() - hintOut.t0) / HINT_OUT_MS);
+      hint = hintOut.from * (1 - t) * (1 - t);
+      if (t < 1) schedule();
+      else hintOut = null;
     }
+    render(p + hint);
+    textFx(p);
+  }
+
+  function schedule() {
+    if (!frame) frame = requestAnimationFrame(update);
   }
 
   function start() {
     if (started) return;
     started = true;
-    current += hint;
-    hint = 0;
-    if (!raf) raf = requestAnimationFrame(tick);
+    // Ease out of a lean in progress instead of snapping back from it.
+    if (hint) hintOut = { from: hint, t0: performance.now() };
     root.classList.add("moved");
     onStart?.();
   }
@@ -326,7 +338,7 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
       if (started) return;
       const t = Math.min(1, (now - t0) / 2000);
       hint = 0.085 * Math.pow(Math.sin(Math.PI * t), 2);
-      render(current + hint);
+      render(progress() + hint);
       if (t < 1) requestAnimationFrame(step);
       else window.setTimeout(lean, 4200);
     };
@@ -376,26 +388,16 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
     walking.raf = requestAnimationFrame(step);
   }
 
-  function onScroll() {
-    if (reduced) return;
-    if (window.scrollY > 8) start();
-    target = clamp(window.scrollY / stageTop);
-    textFx(target);
-    if (!raf) raf = requestAnimationFrame(tick);
-  }
-
-  let resizeTimer = 0;
-  function onResize() {
-    window.clearTimeout(resizeTimer);
-    resizeTimer = window.setTimeout(measure, 120);
-  }
-
   measure();
-  if (!reduced) window.setTimeout(lean, 1900);
-  window.addEventListener("scroll", onScroll, { passive: true });
-  window.addEventListener("resize", onResize, { passive: true });
-  window.addEventListener("load", measure, { once: true });
-  document.fonts?.ready.then(measure);
+  if (!reduced) {
+    window.setTimeout(lean, 1900);
+    window.addEventListener("scroll", schedule, { passive: true });
+  }
+  // The world is 100lvh and the hero 100svh, so neither changes size when the
+  // mobile toolbar slides; this fires on rotation, real resizes, and font swaps.
+  const sizes = new ResizeObserver(measure);
+  sizes.observe(world);
+  sizes.observe(hero);
 
   return {
     get stageTop() {
