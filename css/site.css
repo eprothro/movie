@@ -923,118 +923,106 @@ h1 em {
   max-width: 400px;
 }
 
-.hero-foot .countdown {
+
+.hero-head .countdown {
   margin: 0;
 }
 
-.hero-actions {
-  display: flex;
-  gap: 10px;
-  width: 100%;
+.where {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  margin-top: 4px;
+  padding: 0 12px;
+  font-weight: 500;
+  font-size: 16px;
+  color: var(--muted);
+  text-decoration: none;
 }
 
-.hero-actions .btn-cta {
-  flex: 1.4;
-}
-
-.hero-actions .btn-ghost {
-  flex: 1;
-}
-
-.vote-beat {
-  height: 110svh;
-}
-
-/* Pinned in the sky; js/scene.js fades it out before the screen's top edge
-   gets close, so it never overlaps the screen. */
-.vote-hold {
-  position: fixed;
-  left: 0;
-  right: 0;
-  top: calc(var(--safe-t) + 2.4svh);
-  z-index: 1;
-  display: grid;
-  justify-items: center;
-  padding: 0 20px;
-  text-align: center;
-  opacity: 0;
-  pointer-events: none;
-  will-change: opacity, transform;
-}
-
-.vote-hold .eyebrow {
-  margin-bottom: 34px;
-}
-
-.vs {
-  position: relative;
-  margin: 0;
-  font-family: var(--display);
-  font-variation-settings: "opsz" 144;
-  font-weight: 600;
-  font-size: clamp(30px, 8.8vw, 52px);
-  line-height: 1;
-  letter-spacing: -0.03em;
-  text-shadow: 0 2px 24px rgba(5, 8, 20, 0.9);
-}
-
-.vs-or {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 100%;
-  max-width: 340px;
-  height: 34px;
-  margin: 2px 0 4px;
-  font-family: var(--display);
-  font-style: italic;
-  font-size: 22px;
+.where svg {
+  width: 16px;
+  height: 16px;
   color: var(--gold);
 }
 
-.orbs {
-  position: absolute;
-  left: 4%;
-  right: 4%;
-  top: -26px;
-  height: 0;
+/* Scroll cue. Arrives after the screen inflates, leaves on the first scroll. */
+.cue {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  min-width: 96px;
+  min-height: 44px;
+  padding: 8px 18px 2px;
+  color: var(--ink);
+  text-decoration: none;
+  animation: cue-in 0.9s ease 1.4s both;
+  transition: opacity 0.4s ease, transform 0.4s ease, visibility 0s linear 0.4s;
 }
 
-.orbs i {
+.cue-label {
+  font-weight: 650;
+  font-size: 12px;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+.cue-track {
+  position: relative;
+  width: 2px;
+  height: 40px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, rgba(255, 220, 160, 0.32), rgba(255, 220, 160, 0));
+}
+
+.cue-track i {
   position: absolute;
+  left: -4px;
+  top: -4px;
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  box-shadow: 0 0 12px currentColor;
-  background: currentColor;
-  animation: bob 3.6s ease-in-out infinite alternate;
+  background: radial-gradient(circle, #fffbe0 0 22%, rgba(233, 255, 140, 0.8) 40%, rgba(206, 255, 96, 0) 72%);
+  box-shadow: 0 0 12px 3px rgba(220, 255, 120, 0.35);
+  animation: cue-dot 2.6s cubic-bezier(0.45, 0, 0.3, 1) 1.8s infinite;
+  opacity: 0;
 }
 
-.orbs i:nth-child(1) { left: 4%; top: 0; color: #ffd34d; }
-.orbs i:nth-child(2) { left: 26%; top: 5px; color: #5aa2f0; animation-delay: -0.8s; width: 7px; height: 7px; }
-.orbs i:nth-child(3) { left: 48%; top: 1px; color: #ff5a4e; animation-delay: -1.6s; }
-.orbs i:nth-child(4) { left: 68%; top: 6px; color: #6fd27a; animation-delay: -2.2s; width: 7px; height: 7px; }
-.orbs i:nth-child(5) { left: 88%; top: 2px; color: #b07cf0; animation-delay: -3s; width: 8px; height: 8px; }
-
-@keyframes bob {
-  to {
-    transform: translateY(4px);
+@keyframes cue-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
 }
 
-.jet {
-  position: absolute;
-  left: calc(50% + 46px);
-  top: 8px;
-  width: 92px;
-  height: 31px;
-  animation: fly 4s ease-in-out infinite alternate;
+@keyframes cue-dot {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  18% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(32px);
+  }
+  85%,
+  100% {
+    opacity: 0;
+    transform: translateY(36px);
+  }
 }
 
-@keyframes fly {
-  to {
-    transform: translate(6px, -4px) rotate(-2deg);
-  }
+.moved .cue {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(12px);
+  pointer-events: none;
+  animation: none;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1044,7 +1032,7 @@ h1 em {
 .stage {
   position: relative;
   min-height: 100svh;
-  padding-bottom: calc(var(--safe-b) + 28px);
+  padding-bottom: calc(var(--safe-b) + 16px);
 }
 
 .stage-gap {
@@ -1151,6 +1139,12 @@ h1 em {
     0 12px 32px -10px rgba(255, 176, 80, 0.75),
     0 0 0 1px rgba(255, 220, 160, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.btn-quiet {
+  width: 100%;
+  height: 52px;
+  color: var(--muted);
 }
 
 .btn-ghost,
@@ -1271,19 +1265,9 @@ h1 em {
   text-align: center;
 }
 
-.rm-title {
-  margin: 4px 0 0;
-  font-family: var(--display);
-  font-variation-settings: "opsz" 144;
-  font-weight: 600;
-  font-size: 40px;
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-
-.rm-title em {
+.rm-when {
+  margin: 8px 0 0;
   font-weight: 500;
-  color: var(--gold);
 }
 
 .rm-head .countdown {
@@ -1360,7 +1344,7 @@ h1 em {
 
 .poster-art {
   display: block;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 4 / 5;
   overflow: hidden;
   border-radius: 18px;
   box-shadow:
@@ -1728,8 +1712,7 @@ input[type="text"][aria-invalid="true"] {
     display: none;
   }
 
-  .hero,
-  .vote-beat {
+  .hero {
     position: absolute !important;
     width: 1px;
     height: 1px;
@@ -1739,8 +1722,13 @@ input[type="text"][aria-invalid="true"] {
     clip: rect(0 0 0 0);
   }
 
-  .vote-hold {
-    position: static;
+  /* No camera, so the scene scrolls with the page instead of sitting under it. */
+  .world {
+    position: absolute;
+  }
+
+  .cue {
+    display: none;
   }
 
   .rm-only {
