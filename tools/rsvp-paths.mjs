@@ -18,9 +18,9 @@ const movies = [
 const browser = await chromium.launch();
 const submitted = [];
 
-async function newPage() {
+async function newPage(viewport) {
   const context = await browser.newContext({
-    viewport: { width: 375, height: 812 },
+    viewport,
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
@@ -73,6 +73,16 @@ async function screen(page) {
 // The confirm step fades in, and the corn fill runs after a frame. A shot
 // taken on the step change catches an empty pasture under the screen.
 async function confirmChrome(page, label) {
+  // A short phone leaves Change RSVP just past the fold. Bring it up only
+  // while the movie screen stays fully in frame.
+  await page.evaluate(() => {
+    const change = document.getElementById("change");
+    const screen = document.querySelector(".screen");
+    const overflow = change.getBoundingClientRect().bottom - window.innerHeight;
+    const room = screen.getBoundingClientRect().top - 12;
+    const nudge = Math.min(Math.max(0, overflow), Math.max(0, room));
+    if (nudge > 1) window.scrollBy(0, Math.ceil(nudge));
+  });
   await page.waitForFunction(() => {
     const votes = document.getElementById("votes");
     const change = document.getElementById("change");
@@ -90,7 +100,7 @@ async function confirmChrome(page, label) {
     const changeBox = box(change);
     if (!step.classList.contains("is-active") || !votesBox || !changeBox) return false;
     const vh = window.innerHeight;
-    if (votesBox.top < -1 || changeBox.bottom > vh + 1 || votesBox.bottom > vh + 1) return false;
+    if (votesBox.top < -1 || votesBox.bottom > vh + 1 || changeBox.top > vh - 8) return false;
     // Corn starts fully lowered and rises after the fill transition. Reduced
     // motion only shortens the duration; the delay still has to elapse.
     return [...votes.querySelectorAll(".corn")].every((corn) => {
@@ -119,69 +129,123 @@ async function confirmChrome(page, label) {
   assert.match(boxes.votes.label, /The Princess Bride 2/, `${label} princess count`);
   assert.match(boxes.votes.label, /Top Gun: Maverick 1/, `${label} top gun count`);
   assert.ok(boxes.votes.top >= -1 && boxes.votes.bottom <= boxes.vh + 1, `${label} standings in view`);
-  assert.ok(boxes.change.top >= -1 && boxes.change.bottom <= boxes.vh + 1, `${label} Change RSVP in view`);
-}
-
-for (const [id, title] of movies) {
-  for (const answer of ["yes", "no"]) {
-    const conditional = answer === "no";
-    const { context, page } = await newPage();
-    await page.locator(`.poster[data-movie="${id}"]`).tap();
-    await page.locator(`[data-also="${answer}"]`).tap();
-    await page.waitForFunction(() => document.body.dataset.step === "name");
-    const ask = await screen(page);
-    const button = await page.locator("#name-submit").innerText();
-    const spoken = await page.locator("#name-title").innerText();
-    assert.equal(ask.line, "Who's coming?", `${id} ${answer} line`);
-    assert.equal(ask.sub, conditional ? `(assuming ${title} wins)` : "", `${id} ${answer} subtitle`);
-    assert.equal(button, conditional ? "Save our spot" : "Count me in", `${id} ${answer} button`);
-    assert.equal(spoken, conditional ? `Who's coming? (assuming ${title} wins)` : "Who's coming?");
-    if (shots) {
-      await page.locator("#name-submit").scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `${shots}/${id}-${answer}.png` });
-    }
-
-    await page.fill("#name", "Westley");
-    await page.locator("#name-submit").tap();
-    await page.waitForFunction(() => document.body.dataset.step === "confirm");
-    const done = await screen(page);
-    const payload = submitted.at(-1);
-    assert.equal(payload.p_vote, id);
-    assert.equal(payload.p_would_attend, conditional ? id : "both");
-    assert.equal(done.kicker, "Your vote");
-    assert.equal(done.line, title);
-    assert.equal(done.sub, "");
-    assert.equal(done.headingHidden, false);
-    assert.equal(done.heading, conditional ? "See you Saturday if it wins." : "See you Saturday.");
-    await confirmChrome(page, `${id} ${answer}`);
-    if (shots) await page.screenshot({ path: `${shots}/${id}-${answer}-confirm.png` });
-    console.log("ok", id, answer, button, JSON.stringify(ask.sub), "->", payload.p_would_attend);
-    await context.close();
+  assert.ok(boxes.change.top < boxes.vh - 8, `${label} Change RSVP in view`);
+  const badge = await page.evaluate(() => {
+    const labels = [...document.querySelectorAll(".you")].map((el) => el.textContent);
+    const mine = document.querySelector(".bucket.is-mine .you");
+    if (!mine) return { labels, shown: false };
+    const pill = mine.getBoundingClientRect();
+    const row = mine.parentElement.getBoundingClientRect();
+    const bucket = mine.closest(".bucket").getBoundingClientRect();
+    const style = getComputedStyle(mine);
+    return {
+      labels,
+      shown: style.display !== "none" && Number(style.opacity) > 0.9,
+      text: mine.textContent,
+      lines: mine.getClientRects().length,
+      fits: pill.left >= bucket.left - 1 && pill.right <= bucket.right + 1 && pill.top >= row.top - 1 && pill.bottom <= row.bottom + 1,
+    };
+  });
+  assert.deepEqual(badge.labels, ["Your vote", "Your vote"], `${label} badge copy`);
+  if (label !== "cant") {
+    assert.equal(badge.shown, true, `${label} badge shown`);
+    assert.equal(badge.text, "Your vote", `${label} badge`);
+    assert.equal(badge.lines, 1, `${label} badge wraps`);
+    assert.equal(badge.fits, true, `${label} badge fits beside the count`);
   }
 }
 
-{
-  const { context, page } = await newPage();
-  await page.locator("#cant").tap();
-  await page.waitForFunction(() => document.body.dataset.step === "cant");
-  const ask = await screen(page);
-  assert.equal(ask.line, "We'll see you next time!");
-  assert.equal(ask.sub, "");
-  if (shots) await page.screenshot({ path: `${shots}/cant.png` });
-  await page.fill("#cant-name", "Buttercup");
-  await page.locator("#cant-submit").tap();
-  await page.waitForFunction(() => document.body.dataset.step === "confirm");
-  const done = await screen(page);
-  const payload = submitted.at(-1);
-  assert.equal(payload.p_would_attend, "none");
-  assert.equal(payload.p_vote, null);
-  assert.equal(done.line, "We'll see you next time!");
-  assert.equal(done.heading, "We'll see you next time!");
-  assert.equal(done.headingHidden, true);
-  await confirmChrome(page, "cant");
-  if (shots) await page.screenshot({ path: `${shots}/cant-confirm.png` });
-  console.log("ok cant");
-  await context.close();
+function oneLine(page, id) {
+  return page.locator(id).evaluate((el) => {
+    const rects = [...el.getClientRects()];
+    const face = document.querySelector(".face").getBoundingClientRect();
+    const box = el.getBoundingClientRect();
+    return {
+      lines: rects.length,
+      inside: box.width === 0 || (box.left >= face.left - 1 && box.right <= face.right + 1),
+    };
+  });
+}
+
+const viewports = [
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+];
+
+for (const viewport of viewports) {
+  const size = `${viewport.width}x${viewport.height}`;
+  for (const [id, title] of movies) {
+    for (const answer of ["yes", "no"]) {
+      const conditional = answer === "no";
+      const { context, page } = await newPage(viewport);
+      await page.locator(`.poster[data-movie="${id}"]`).tap();
+      await page.locator(`[data-also="${answer}"]`).tap();
+      await page.waitForFunction(() => document.body.dataset.step === "name");
+      const ask = await screen(page);
+      const button = await page.locator("#name-submit").innerText();
+      const spoken = await page.locator("#name-title").innerText();
+      assert.equal(ask.line, "Who's coming?", `${id} ${answer} line`);
+      assert.equal(ask.sub, conditional ? `(assuming ${title} wins)` : "", `${id} ${answer} subtitle`);
+      assert.equal(button, conditional ? "Save our spot" : "Count me in", `${id} ${answer} button`);
+      assert.equal(spoken, conditional ? `Who's coming? (assuming ${title} wins)` : "Who's coming?");
+      await page.fill("#name", "Westley");
+      await page.locator("#name-submit").tap();
+      await page.waitForFunction(() => document.body.dataset.step === "confirm");
+      const done = await screen(page);
+      const payload = submitted.at(-1);
+      assert.equal(payload.p_vote, id);
+      assert.equal(payload.p_would_attend, conditional ? id : "both");
+      if (conditional) {
+        assert.equal(done.kicker, "");
+        assert.equal(done.line, "See you Saturday");
+        assert.equal(done.sub, `if ${title} wins`);
+        assert.equal(done.headingHidden, true);
+        assert.equal(done.heading, `See you Saturday if ${title} wins.`);
+        const line = await oneLine(page, "#screen-line");
+        const sub = await oneLine(page, "#screen-sub");
+        assert.equal(line.lines, 1, `${id} screen line wraps at ${size}`);
+        assert.equal(sub.lines, 1, `${id} screen subtitle wraps at ${size}`);
+        assert.equal(line.inside, true, `${id} screen line overflows at ${size}`);
+        assert.equal(sub.inside, true, `${id} screen subtitle overflows at ${size}`);
+      } else {
+        assert.equal(done.kicker, "Your vote");
+        assert.equal(done.line, title);
+        assert.equal(done.sub, "");
+        assert.equal(done.headingHidden, false);
+        assert.equal(done.heading, "See you Saturday.");
+      }
+      await confirmChrome(page, `${id} ${answer}`);
+      const shoot = shots && (conditional || (id === "princess_bride" && answer === "yes"));
+      if (shoot) {
+        const name = conditional ? `conditional-${id}` : "still-in";
+        await page.screenshot({ path: `${shots}/${name}-${size}.png` });
+      }
+      console.log("ok", size, id, answer, button, JSON.stringify(ask.sub), "->", payload.p_would_attend);
+      await context.close();
+    }
+  }
+
+  {
+    const { context, page } = await newPage(viewport);
+    await page.locator("#cant").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "cant");
+    const ask = await screen(page);
+    assert.equal(ask.line, "We'll see you next time!");
+    assert.equal(ask.sub, "");
+    await page.fill("#cant-name", "Buttercup");
+    await page.locator("#cant-submit").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "confirm");
+    const done = await screen(page);
+    const payload = submitted.at(-1);
+    assert.equal(payload.p_would_attend, "none");
+    assert.equal(payload.p_vote, null);
+    assert.equal(done.line, "We'll see you next time!");
+    assert.equal(done.heading, "We'll see you next time!");
+    assert.equal(done.headingHidden, true);
+    await confirmChrome(page, "cant");
+    console.log("ok", size, "cant");
+    await context.close();
+  }
 }
 
 await browser.close();
