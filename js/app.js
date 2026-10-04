@@ -7,14 +7,12 @@ const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const els = {
   steps: [...document.querySelectorAll(".step")],
-  heroCta: $("hero-cta"),
-  heroCtaLabel: $("hero-cta-label"),
+  cue: $("cue"),
   showtime: $("showtime"),
   countdowns: [...document.querySelectorAll("[data-countdown]")],
   countdownSr: $("countdown-sr"),
   closed: $("closed-note"),
-  inviteActions: $("invite-actions"),
-  imIn: $("im-in"),
+  closedRoute: $("closed-route"),
   cant: $("cant"),
   keep: $("keep"),
   posters: $("posters"),
@@ -45,7 +43,7 @@ const els = {
 };
 
 const state = {
-  step: "invite",
+  step: "pick",
   pick: null,
   also: null,
   partySize: 1,
@@ -89,7 +87,7 @@ initShowtime();
 bind();
 setParty(1);
 wireDirections();
-setStep("invite", { focus: false, scroll: false });
+setStep("pick", { focus: false, scroll: false });
 boot();
 registerWorker();
 
@@ -121,6 +119,9 @@ function initShowtime() {
   }
   state.showtime = times.showtime;
   els.showtime.textContent = formatClock(times.showtime, EVENT.timezone);
+  document.querySelectorAll("[data-showtime]").forEach((el) => {
+    el.textContent = els.showtime.textContent;
+  });
   els.showtime.dateTime = times.showtime.toISOString();
   tickCountdown();
   window.setInterval(tickCountdown, 1000);
@@ -181,16 +182,14 @@ function wireDirections() {
 /* Flow */
 
 function bind() {
-  els.heroCta.addEventListener("click", (event) => {
+  const toStage = (event) => {
     event.preventDefault();
-    scene.goToStage();
-    if (reduced) els.steps.find((s) => s.dataset.step === state.step)?.querySelector("h2")?.focus();
-  });
-
-  els.imIn.addEventListener("click", () => {
-    if (!state.flags.rsvpsOpen) return;
-    setStep("pick");
-  });
+    const heading = () => els.steps.find((s) => s.dataset.step === state.step)?.querySelector("h2");
+    if (reduced) heading()?.focus();
+    else scene.goToStage({ done: () => heading()?.focus({ preventScroll: true }) });
+  };
+  els.cue.addEventListener("click", toStage);
+  document.querySelector(".skip").addEventListener("click", toStage);
 
   els.cant.addEventListener("click", () => {
     if (!state.flags.rsvpsOpen) return;
@@ -203,7 +202,7 @@ function bind() {
 
   els.posters.addEventListener("click", (event) => {
     const button = event.target.closest("[data-movie]");
-    if (!button || state.step !== "pick") return;
+    if (!button || state.step !== "pick" || !state.flags.rsvpsOpen) return;
     state.pick = button.dataset.movie;
     markPosters();
     button.classList.remove("is-chosen");
@@ -248,7 +247,7 @@ function advanceSoon(step) {
 }
 
 function goBack() {
-  const back = { pick: "invite", other: "pick", name: "other", cant: "invite" }[state.step];
+  const back = { other: "pick", name: "other", cant: "pick" }[state.step];
   if (back) setStep(back, { back: true });
 }
 
@@ -264,8 +263,10 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
     el.setAttribute("aria-hidden", on ? "false" : "true");
   });
 
-  if (step === "invite") syncInvite();
-  if (step === "pick") markPosters();
+  if (step === "pick") {
+    syncPick();
+    markPosters();
+  }
   if (step === "other") markAlso();
   if (step === "name") els.nameSubmit.textContent = state.rsvp ? "Update" : "Count me in";
   if (step === "cant") els.cantSubmit.textContent = state.rsvp ? "Update" : "Send";
@@ -280,11 +281,18 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
   else active.querySelector("h2")?.focus({ preventScroll: true });
 }
 
-function syncInvite() {
+function syncPick() {
   const open = state.flags.rsvpsOpen;
   els.closed.hidden = open;
-  els.inviteActions.hidden = !open;
+  els.posters.hidden = !open;
+  els.cant.hidden = !open;
+  els.closedRoute.hidden = open;
   els.keep.hidden = !(state.editing && state.rsvp);
+  document.getElementById("pick-title").textContent = !open
+    ? "RSVPs are closed."
+    : state.flags.votingOpen
+      ? "Pick the movie. Most votes wins."
+      : "Which movie are you coming for?";
 }
 
 function markPosters() {
@@ -319,7 +327,7 @@ function beginEdit() {
   setParty(rsvp.party_size || 1, { quiet: true });
   clearError(els.name, els.nameError);
   clearError(els.cantName, els.cantError);
-  setStep("invite");
+  setStep("pick");
 }
 
 /* Party size */
@@ -374,12 +382,11 @@ function cardFor() {
   const time = els.showtime.textContent;
   const r = state.rsvp;
   switch (state.step) {
-    case "invite":
+    case "pick":
       if (state.showing) return ["Now showing", winnerTitle(), ""];
       if (!state.flags.rsvpsOpen) return [`Sat, Oct 10 · ${time}`, "RSVPs closed", ""];
-      return ["", "You in?", `Sat, Oct 10 · ${time}`];
-    case "pick":
-      return state.flags.votingOpen ? ["", "Your pick?", "Most votes wins"] : ["", "Coming for?", ""];
+      if (!state.flags.votingOpen) return ["Movie night", "Coming for?", ""];
+      return ["Movie night", "Pick the movie", "Most votes wins"];
     case "other": {
       const other = shortTitle(otherMovie(state.pick));
       return state.flags.votingOpen ? ["And if", `${other} wins?`, ""] : ["And if it's", `${other}?`, ""];
@@ -409,7 +416,7 @@ function paintScreen() {
   const apply = () => {
     els.kicker.textContent = kicker;
     els.line.textContent = line;
-    els.line.classList.toggle("is-long", line.length > 13);
+    els.line.classList.toggle("is-long", line.length > 14);
     els.sub.textContent = sub;
     els.card.classList.remove("is-swapping");
   };
@@ -456,7 +463,6 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
   els.confirmTitle.textContent = coming ? "See you Saturday." : "We'll miss you.";
   els.confirmTitle.classList.toggle("sr-only", !coming);
   els.confirmSub.textContent = "";
-  els.heroCtaLabel.textContent = coming ? "You're in" : "Your RSVP";
   els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });
   renderVotes();
@@ -615,12 +621,12 @@ async function boot() {
 
   document.documentElement.classList.remove("has-token");
   const rsvp = mine?.data?.rsvp || null;
-  if (rsvp && state.step === "invite") {
+  if (rsvp && state.step === "pick") {
     showConfirm(rsvp, { focus: false, scroll: false });
     return;
   }
   if (rsvp) state.rsvp = rsvp;
-  if (state.step === "invite") syncInvite();
+  if (state.step === "pick") syncPick();
   paintScreen();
 }
 

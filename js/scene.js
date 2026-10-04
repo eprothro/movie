@@ -28,6 +28,44 @@ const FLIES = {
   fore: { n: 10, r: [2.6, 5.5], drift: 6 },
 };
 
+// Guided walk to the screen. Time is warped so the vote beat and the leader
+// each get a longer share of the walk than the empty meadow between them.
+const WALK_MS = 3800;
+const LINGER = [
+  [0.16, 0.36, 1.6],
+  [LIT_AT - 0.02, CARD_AT + 0.02, 0.85],
+];
+const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+
+function walkTable(n = 400) {
+  const w = new Float64Array(n + 1);
+  for (let i = 1; i <= n; i += 1) {
+    const p = (i - 0.5) / n;
+    let d = 1;
+    for (const [a, b, extra] of LINGER) d += extra * smooth(a - 0.05, a + 0.05, p) * (1 - smooth(b - 0.05, b + 0.05, p));
+    w[i] = w[i - 1] + d;
+  }
+  for (let i = 1; i <= n; i += 1) w[i] /= w[n];
+  return {
+    at(p) {
+      const x = clamp(p) * n;
+      const i = Math.min(n - 1, Math.floor(x));
+      return w[i] + (w[i + 1] - w[i]) * (x - i);
+    },
+    inverse(v) {
+      let lo = 0;
+      let hi = n;
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        if (w[mid] < v) lo = mid;
+        else hi = mid;
+      }
+      const span = w[hi] - w[lo] || 1;
+      return (lo + (v - w[lo]) / span) / n;
+    },
+  };
+}
+
 // Fade the vote title while the screen is still this far below it, then hide
 // it. A later hard cutoff guarantees the two never share pixels.
 const CLEAR_FROM = 108;
@@ -66,8 +104,9 @@ function populate(world) {
   }
 }
 
-export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
+export function createScene({ world, stage, hero, hold, reduced, onScreen, onStart }) {
   populate(world);
+  const walk = walkTable();
 
   const layers = [...world.querySelectorAll(".L, .sky, .ground")].map((el) => {
     const fade = el.classList.contains("fence")
@@ -78,7 +117,9 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
           ? [0.25, 0.55]
           : el.classList.contains("flies-near")
             ? [0.62, 0.9]
-            : null;
+            : el.classList.contains("lights")
+              ? [0.08, 0.16]
+              : null;
     return {
       el,
       z: el.dataset.z ? Number(el.dataset.z) : null,
@@ -116,6 +157,9 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
   let screenState = "";
   let leaderN = "";
   let lit = null;
+  let hint = 0;
+  let started = reduced;
+  let walking = null;
   const written = new Map();
   const write = (el, prop, value) => {
     const key = el.id || el.className;
@@ -147,7 +191,8 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
     stageTop = Math.max(1, stage.getBoundingClientRect().top + window.scrollY);
     target = reduced ? 1 : clamp(window.scrollY / stageTop);
     current = target;
-    render(current);
+    if (window.scrollY > 8) start();
+    render(current + hint);
     textFx(target);
   }
 
@@ -182,7 +227,7 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
     }
 
     if (!reduced) {
-      const rise = smooth(0.46, 0.62, (e * stageTop) / H);
+      const rise = smooth(0.34, 0.5, (e * stageTop) / H);
       const edge = hy + dy + screenScale * (screenTop - hy);
       const gap = edge - holdBottom;
       // Gap keeps it off the screen; the scroll cap finishes the fade once the
@@ -248,7 +293,7 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
     const k = 1 - Math.pow(1 - 0.2, dt / 16.7);
     current += (target - current) * k;
     if (Math.abs(target - current) < 0.0004) current = target;
-    render(current);
+    render(current + hint);
     if (current !== target) {
       raf = requestAnimationFrame(tick);
     } else {
@@ -257,8 +302,76 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
     }
   }
 
+  function start() {
+    if (started) return;
+    started = true;
+    current += hint;
+    hint = 0;
+    if (!raf) raf = requestAnimationFrame(tick);
+    root.classList.add("moved");
+    onStart?.();
+  }
+
+  // Before the first scroll the camera leans toward the screen now and then,
+  // a nudge that the scene moves.
+  function lean() {
+    if (started) return;
+    const t0 = performance.now();
+    const step = (now) => {
+      if (started) return;
+      const t = Math.min(1, (now - t0) / 2000);
+      hint = 0.085 * Math.pow(Math.sin(Math.PI * t), 2);
+      render(current + hint);
+      if (t < 1) requestAnimationFrame(step);
+      else window.setTimeout(lean, 4200);
+    };
+    requestAnimationFrame(step);
+  }
+
+  function stopWalk() {
+    if (!walking) return;
+    cancelAnimationFrame(walking.raf);
+    walking.off();
+    walking = null;
+  }
+
+  function walkTo(top, done) {
+    stopWalk();
+    const from = window.scrollY;
+    if (Math.abs(top - from) < 4) {
+      done?.();
+      return;
+    }
+    start();
+    const w0 = walk.at(from / stageTop);
+    const w1 = walk.at(top / stageTop);
+    const ms = Math.max(600, WALK_MS * Math.abs(w1 - w0));
+    const t0 = performance.now();
+    const cancel = () => stopWalk();
+    const events = ["wheel", "touchstart", "pointerdown", "keydown"];
+    events.forEach((type) => window.addEventListener(type, cancel, { passive: true, capture: true }));
+    walking = {
+      raf: 0,
+      off: () => events.forEach((type) => window.removeEventListener(type, cancel, { capture: true })),
+    };
+    const step = (now) => {
+      if (!walking) return;
+      const t = Math.min(1, (now - t0) / ms);
+      const p = walk.inverse(w0 + (w1 - w0) * easeInOut(t));
+      window.scrollTo(0, t >= 1 ? top : Math.round(p * stageTop));
+      if (t < 1) {
+        walking.raf = requestAnimationFrame(step);
+      } else {
+        stopWalk();
+        done?.();
+      }
+    };
+    walking.raf = requestAnimationFrame(step);
+  }
+
   function onScroll() {
     if (reduced) return;
+    if (window.scrollY > 8) start();
     target = clamp(window.scrollY / stageTop);
     textFx(target);
     if (!raf) raf = requestAnimationFrame(tick);
@@ -271,6 +384,7 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
   }
 
   measure();
+  if (!reduced) window.setTimeout(lean, 1900);
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", onResize, { passive: true });
   window.addEventListener("load", measure, { once: true });
@@ -283,9 +397,12 @@ export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
     atStage() {
       return reduced || window.scrollY >= stageTop - 8;
     },
-    goToStage({ instant = false } = {}) {
-      if (reduced) return;
-      window.scrollTo({ top: stageTop, behavior: instant ? "auto" : "smooth" });
+    goToStage({ done } = {}) {
+      if (reduced) {
+        done?.();
+        return;
+      }
+      walkTo(stageTop, done);
     },
     measure,
   };

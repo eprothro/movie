@@ -41,7 +41,7 @@
     } catch (e) {}
   </script>
 </head>
-<body data-step="invite" data-screen="off">
+<body data-step="pick" data-screen="off">
   <a class="skip" href="#rsvp">Skip to RSVP</a>
 
   <div class="world" id="world" aria-hidden="true">
@@ -156,23 +156,25 @@
         <p class="eyebrow">Prothro</p>
         <h1>Movie <em>Night</em></h1>
         <p class="when"><span id="date-label">Saturday, Oct 10</span><span class="dot" aria-hidden="true"></span><span>Showtime <time id="showtime" datetime="">7:11 PM</time></span></p>
-      </div>
-      <div class="hero-foot">
+        <a class="where" data-dir href="https://www.google.com/maps/dir/?api=1&amp;destination=11921%20County%20Road%20152%20W%2C%20Bullard%2C%20TX%2075757" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18s6-5.6 6-10a6 6 0 1 0-12 0c0 4.4 6 10 6 10zm0-7.6a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z" fill="currentColor" fill-rule="evenodd"/></svg>Bullard, TX</a>
         <p class="countdown" id="countdown" data-countdown aria-hidden="true"></p>
         <p class="sr-only" id="countdown-sr"></p>
-        <div class="hero-actions">
-          <a class="btn btn-primary btn-cta" href="#rsvp" id="hero-cta"><span id="hero-cta-label">RSVP</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
-          <a class="btn btn-ghost" data-dir href="https://www.google.com/maps/dir/?api=1&amp;destination=11921%20County%20Road%20152%20W%2C%20Bullard%2C%20TX%2075757" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18s6-5.6 6-10a6 6 0 1 0-12 0c0 4.4 6 10 6 10zm0-7.6a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z" fill="currentColor" fill-rule="evenodd"/></svg>Directions</a>
-        </div>
+      </div>
+      <div class="hero-foot">
+        <a class="cue" href="#rsvp" id="cue" aria-label="Scroll to the vote">
+          <span class="cue-label">Scroll</span>
+          <span class="cue-track" aria-hidden="true"><i></i></span>
+        </a>
       </div>
     </header>
 
     <section class="vote-beat" aria-label="The vote">
       <div class="vote-hold">
-        <p class="eyebrow">Your vote</p>
+        <p class="eyebrow">You pick</p>
         <p class="vs vs-io"><span class="orbs" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>Inside Out</p>
         <p class="vs-or">or<svg class="jet" viewBox="0 0 120 40" aria-hidden="true"><path d="M2 30 C 30 28, 60 22, 86 14" fill="none" stroke="url(#trail)" stroke-width="2.5" stroke-linecap="round"/><defs><linearGradient id="trail" x1="0" x2="1"><stop offset="0" stop-color="#ffb46a" stop-opacity="0"/><stop offset="1" stop-color="#ffd9a8"/></linearGradient></defs><path d="M86 14 L104 6 L118 4 L106 10 L110 18 L102 12 L92 16 Z" fill="#ffe7c4"/></svg></p>
         <p class="vs vs-tg">Top Gun: Maverick</p>
+        <p class="vs-rule">One screening<span class="dot" aria-hidden="true"></span>Most votes wins</p>
       </div>
     </section>
 
@@ -182,28 +184,14 @@
         <p class="sr-only" id="step-live" aria-live="polite"></p>
         <div class="steps" id="steps">
 
-          <div class="step is-active" data-step="invite">
-            <h2 class="sr-only" tabindex="-1">You in?</h2>
+          <div class="step is-active" data-step="pick">
+            <h2 class="sr-only" tabindex="-1" id="pick-title">Pick the movie. Most votes wins.</h2>
             <div class="rm-only rm-head">
               <p class="eyebrow">Prothro</p>
-              <p class="rm-title">Movie <em>Night</em></p>
+              <p class="rm-when">Saturday, Oct 10 · <span data-showtime>7:11 PM</span></p>
               <p class="countdown" data-countdown></p>
             </div>
             <p class="sr-only" id="closed-note" hidden>RSVPs are closed.</p>
-            <div class="stack" id="invite-actions">
-              <button type="button" class="btn btn-primary btn-xl" id="im-in">I'm in</button>
-              <button type="button" class="btn btn-ghost btn-xl" id="cant">Can't make it</button>
-            </div>
-            <button type="button" class="text-btn" id="keep" hidden>Keep my RSVP</button>
-            <div class="route" data-route>
-              <a class="route-go" data-dir href="https://www.google.com/maps/dir/?api=1&amp;destination=11921%20County%20Road%20152%20W%2C%20Bullard%2C%20TX%2075757" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18s6-5.6 6-10a6 6 0 1 0-12 0c0 4.4 6 10 6 10zm0-7.6a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z" fill="currentColor" fill-rule="evenodd"/></svg>Directions</a>
-              <a class="route-alt" data-dir-alt href="https://maps.apple.com/?daddr=11921%20County%20Road%20152%20W%2C%20Bullard%2C%20TX%2075757&amp;dirflg=d" rel="noopener">Apple Maps</a>
-            </div>
-          </div>
-
-          <div class="step" data-step="pick">
-            <div class="step-head"><button type="button" class="back" data-back aria-label="Back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span class="pips" aria-hidden="true"><i class="on"></i><i></i><i></i></span></div>
-            <h2 class="sr-only" tabindex="-1" id="pick-title">Your pick?</h2>
             <div class="posters" id="posters">
               <button type="button" class="poster" data-movie="inside_out" aria-pressed="false">
                 <span class="poster-art art-io" aria-hidden="true">
@@ -246,6 +234,12 @@
                 <span class="poster-title">Top Gun: Maverick</span>
                 <span class="poster-badge">Your pick</span>
               </button>
+            </div>
+            <button type="button" class="btn btn-ghost btn-quiet" id="cant">Can't make it</button>
+            <button type="button" class="text-btn" id="keep" hidden>Keep my RSVP</button>
+            <div class="route" data-route id="closed-route" hidden>
+              <a class="route-go" data-dir href="https://www.google.com/maps/dir/?api=1&amp;destination=11921%20County%20Road%20152%20W%2C%20Bullard%2C%20TX%2075757" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18s6-5.6 6-10a6 6 0 1 0-12 0c0 4.4 6 10 6 10zm0-7.6a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z" fill="currentColor" fill-rule="evenodd"/></svg>Directions</a>
+              <a class="route-alt" data-dir-alt href="https://maps.apple.com/?daddr=11921%20County%20Road%20152%20W%2C%20Bullard%2C%20TX%2075757&amp;dirflg=d" rel="noopener">Apple Maps</a>
             </div>
           </div>
 
