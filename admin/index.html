@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Guest book · Movie night</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#070910">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/site.css">
+  <style>html{background:#070910;color:#f4efe6}body{margin:0}</style>
+  <script>
+    try {
+      if (sessionStorage.getItem("prothro-movie-admin-pin")) {
+        document.documentElement.classList.add("has-pin");
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body class="admin">
+  <div class="sky" aria-hidden="true">
+    <svg class="stars" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+      <circle cx="12" cy="14" r="0.4" fill="#fff" opacity="0.7"/>
+      <circle cx="30" cy="8" r="0.22" fill="#fff" opacity="0.45"/>
+      <circle cx="70" cy="16" r="0.3" fill="#f3d7a1" opacity="0.55"/>
+      <circle cx="86" cy="28" r="0.2" fill="#fff" opacity="0.4"/>
+      <circle cx="48" cy="22" r="0.18" fill="#fff" opacity="0.4"/>
+      <circle cx="18" cy="40" r="0.24" fill="#fff" opacity="0.35"/>
+      <circle cx="78" cy="60" r="0.2" fill="#fff" opacity="0.35"/>
+      <circle cx="40" cy="78" r="0.26" fill="#f3d7a1" opacity="0.4"/>
+    </svg>
+    <div class="grain"></div>
+  </div>
+  <main class="wrap">
+    <section class="pin-screen" id="pin-screen">
+      <p class="eyebrow">Hosts</p>
+      <h1>Guest book</h1>
+      <p class="lede">Evan and Julie</p>
+      <div class="pin-dots" id="pin-dots" aria-hidden="true"></div>
+      <p class="pin-hint" id="pin-hint">Four to eight digits</p>
+      <p class="sr-only" id="pin-live" aria-live="polite"></p>
+      <div class="keypad-wrap">
+        <div class="keypad" id="keypad" role="group" aria-label="PIN keypad">
+          <button type="button" data-digit="1">1</button>
+          <button type="button" data-digit="2">2</button>
+          <button type="button" data-digit="3">3</button>
+          <button type="button" data-digit="4">4</button>
+          <button type="button" data-digit="5">5</button>
+          <button type="button" data-digit="6">6</button>
+          <button type="button" data-digit="7">7</button>
+          <button type="button" data-digit="8">8</button>
+          <button type="button" data-digit="9">9</button>
+          <button type="button" class="del" id="pin-del" aria-label="Delete digit">Del</button>
+          <button type="button" data-digit="0">0</button>
+          <button type="button" class="del" id="pin-clear" aria-label="Clear PIN">Clear</button>
+        </div>
+        <button type="button" class="unlock" id="unlock" disabled>Unlock</button>
+        <p class="pin-error" id="pin-error" role="alert"></p>
+      </div>
+    </section>
+
+    <p id="opening" class="lede">Opening the book…</p>
+
+    <section class="book" id="book" hidden>
+      <div class="book-head">
+        <div>
+          <p class="eyebrow">Hosts</p>
+          <h2>Guest book</h2>
+        </div>
+        <div class="book-actions">
+          <button type="button" class="link" id="refresh">Refresh</button>
+          <button type="button" class="link" id="lock">Lock</button>
+        </div>
+      </div>
+      <p class="book-error" id="book-error" role="alert" hidden></p>
+      <div class="stats" id="stats"></div>
+      <div class="switches">
+        <button type="button" class="toggle" id="toggle-rsvp" aria-pressed="true">
+          <span><strong>RSVPs</strong><small id="rsvp-switch-label">Open</small></span>
+          <span class="switch" aria-hidden="true"><i></i></span>
+        </button>
+        <button type="button" class="toggle" id="toggle-vote" aria-pressed="true">
+          <span><strong>Voting</strong><small id="vote-switch-label">Open</small></span>
+          <span class="switch" aria-hidden="true"><i></i></span>
+        </button>
+      </div>
+      <p class="quiet" id="no-line" hidden></p>
+      <div id="guest-list"></div>
+    </section>
+  </main>
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>

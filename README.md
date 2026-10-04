@@ -1,2 +1,58 @@
-# movie
-Prothro backyard movie night: RSVP + vote (movie.prothro.site)
+# Prothro Movie Night
+
+A single-page invite for Saturday, October 10, 2026. Guests RSVP and vote between **Inside Out** and **Top Gun: Maverick**. Showtime is 15 minutes after local sunset, computed in the browser.
+
+The site is static. GitHub Pages serves it from the `main` branch root. The custom domain is `movie.prothro.site` (`CNAME`).
+
+## Before it works
+
+1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), run the whole file [`supabase/migrations/001_movie_night.sql`](supabase/migrations/001_movie_night.sql). It is safe to re-run.
+2. Set the host PIN (4–8 digits). This is the only place the PIN should exist. Do not commit it.
+
+   ```sql
+   select movie_set_admin_pin('CHANGE_ME');
+   ```
+
+3. In [`js/config.js`](js/config.js), replace the central-Texas placeholder latitude and longitude with the backyard. Timezone stays `America/Chicago` unless the screening moves.
+4. Turn on GitHub Pages: **Settings → Pages → Deploy from branch `main` / `(root)`**. The `CNAME` file already claims `movie.prothro.site`.
+5. DNS: a CNAME for `movie.prothro.site` pointing at `eprothro.github.io`.
+
+Until step 2, `/admin/` will say the PIN isn't set. Until step 1, saving an RSVP fails with a short "try again" message.
+
+## Admin
+
+[`/admin/`](admin/index.html) is not linked from the invite and is `noindex`. Evan and Julie enter the PIN on a keypad. It stays in `sessionStorage` until the tab closes or they tap **Lock**.
+
+Five wrong PINs lock admin calls for 10 minutes. The PIN is stored only as a bcrypt hash (`pgcrypto`). Anon cannot read `movie_settings`.
+
+The guest book lists every RSVP, headcount, and the vote tally. Hosts can remove an entry and close or reopen RSVPs and voting.
+
+## How RSVPs are stored
+
+Row level security is on, with no policies, and table privileges are revoked from `anon`. The browser only calls `security definer` functions:
+
+| Function | Who | What |
+| --- | --- | --- |
+| `movie_submit_rsvp` | guest | Create or update. Returns an edit token. |
+| `movie_get_rsvp` | guest | Their own RSVP, by token. |
+| `movie_get_standings` | anyone | Vote counts and headcount. No names. |
+| `movie_admin_overview` | hosts | Full list. Requires the PIN. |
+| `movie_admin_delete` | hosts | Remove one RSVP. |
+| `movie_admin_set_open` | hosts | Open or close RSVPs and voting. |
+| `movie_set_admin_pin` | SQL editor only | Not granted to anon. |
+
+The edit token is 24 random bytes. The database stores its SHA-256 hash. The browser keeps the token in `localStorage` so the same phone can change an RSVP.
+
+Spam controls: a hidden honeypot field, and 40 saves per 15 minutes per IP (higher if the platform doesn't pass an address, so one household network isn't locked out). Names are 1–60 characters, party size is 1–10, notes are up to 240 characters.
+
+## Local preview
+
+From the repo root:
+
+```bash
+python3 -m http.server 8765
+```
+
+Open `http://127.0.0.1:8765/`. Sunset and the countdown work offline. Saving an RSVP needs the SQL above and a network.
+
+Fonts: Fraunces and Outfit, SIL Open Font License (`fonts/OFL.txt`).
