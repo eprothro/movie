@@ -80,7 +80,15 @@ const scene = createScene({
   stage: $("rsvp"),
   hero: $("hero"),
   reduced,
+  onScreen(screen) {
+    const open = screen === "card";
+    els.posters.classList.toggle("is-in", open);
+    els.posters.inert = !open;
+  },
 });
+// A saved token means they may already have an RSVP. Hold the leader until
+// boot confirms it; a dead token puts the countdown back.
+if (state.token) scene.skipLeader();
 
 initShowtime();
 bind();
@@ -458,6 +466,7 @@ function popcorn() {
 function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = {}) {
   state.rsvp = rsvp;
   state.editing = false;
+  scene.skipLeader();
   const coming = rsvp.would_attend !== "none";
   els.confirmTitle.textContent = coming ? "See you Saturday." : "We'll miss you.";
   els.confirmTitle.classList.toggle("sr-only", !coming);
@@ -616,7 +625,10 @@ async function boot() {
     state.flags.votingOpen = standings.data.voting_open !== false;
   }
 
-  if (mine?.ok && mine.data?.ok !== false && !mine.data?.rsvp) writeToken("");
+  if (mine?.ok && mine.data?.ok !== false && !mine.data?.rsvp) {
+    writeToken("");
+    scene.allowLeader();
+  }
 
   document.documentElement.classList.remove("has-token");
   const rsvp = mine?.data?.rsvp || null;

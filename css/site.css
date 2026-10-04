@@ -68,6 +68,13 @@ html {
   color: var(--ink);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* A hard flick rests on the landing or the screen, instead of sailing past.
+     A slow drag can still stop in between, so the walk stays scrubbed. */
+  scroll-snap-type: y proximity;
+}
+
+html.is-walking {
+  scroll-snap-type: none;
 }
 
 body {
@@ -1033,6 +1040,8 @@ h1 em {
   position: relative;
   min-height: 100svh;
   padding-bottom: calc(var(--safe-b) + 16px);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .stage-gap {
@@ -1325,6 +1334,14 @@ h1 em {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.posters.is-in {
+  opacity: 1;
+  transform: none;
 }
 
 .poster {
@@ -1740,6 +1757,11 @@ input[type="text"][aria-invalid="true"] {
 
   .rm-only {
     display: grid;
+  }
+
+  .posters {
+    opacity: 1;
+    transform: none;
   }
 
   /* The date sits between the screen and the posters. Keep it to one line and
