@@ -962,7 +962,7 @@ h1 em {
 }
 
 .vote-hold .eyebrow {
-  margin-bottom: 14px;
+  margin-bottom: 34px;
 }
 
 .vs {
@@ -993,9 +993,9 @@ h1 em {
 
 .orbs {
   position: absolute;
-  left: -2px;
-  right: -2px;
-  top: -16px;
+  left: 4%;
+  right: 4%;
+  top: -26px;
   height: 0;
 }
 
@@ -1009,15 +1009,15 @@ h1 em {
   animation: bob 3.6s ease-in-out infinite alternate;
 }
 
-.orbs i:nth-child(1) { left: 6%; top: 6px; color: #ffd34d; }
-.orbs i:nth-child(2) { left: 28%; top: -6px; color: #5aa2f0; animation-delay: -0.8s; width: 7px; height: 7px; }
-.orbs i:nth-child(3) { left: 55%; top: 0; color: #ff5a4e; animation-delay: -1.6s; }
-.orbs i:nth-child(4) { left: 76%; top: -10px; color: #6fd27a; animation-delay: -2.2s; width: 7px; height: 7px; }
-.orbs i:nth-child(5) { left: 94%; top: 4px; color: #b07cf0; animation-delay: -3s; width: 8px; height: 8px; }
+.orbs i:nth-child(1) { left: 4%; top: 0; color: #ffd34d; }
+.orbs i:nth-child(2) { left: 26%; top: 5px; color: #5aa2f0; animation-delay: -0.8s; width: 7px; height: 7px; }
+.orbs i:nth-child(3) { left: 48%; top: 1px; color: #ff5a4e; animation-delay: -1.6s; }
+.orbs i:nth-child(4) { left: 68%; top: 6px; color: #6fd27a; animation-delay: -2.2s; width: 7px; height: 7px; }
+.orbs i:nth-child(5) { left: 88%; top: 2px; color: #b07cf0; animation-delay: -3s; width: 8px; height: 8px; }
 
 @keyframes bob {
   to {
-    transform: translateY(-6px);
+    transform: translateY(4px);
   }
 }
 
@@ -1047,7 +1047,8 @@ h1 em {
 }
 
 .stage-gap {
-  height: calc(var(--hy) + 6 * var(--s));
+  /* The extra 14px clears the screen's feet: about 20px to the first button. */
+  height: calc(var(--hy) + 6 * var(--s) + 14px);
 }
 
 .panel {
@@ -1191,7 +1192,7 @@ h1 em {
   align-items: center;
   justify-content: space-between;
   height: 40px;
-  margin: -4px 0 0;
+  margin: 2px 0 0;
 }
 
 .back {
