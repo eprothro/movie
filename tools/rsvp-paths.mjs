@@ -70,6 +70,58 @@ async function screen(page) {
   }));
 }
 
+// The confirm step fades in, and the corn fill runs after a frame. A shot
+// taken on the step change catches an empty pasture under the screen.
+async function confirmChrome(page, label) {
+  await page.waitForFunction(() => {
+    const votes = document.getElementById("votes");
+    const change = document.getElementById("change");
+    const step = votes.closest(".step");
+    const box = (el) => {
+      for (let node = el; node && node !== document.documentElement; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) < 0.95) return null;
+      }
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 8 || rect.height < 8) return null;
+      return rect;
+    };
+    const votesBox = box(votes);
+    const changeBox = box(change);
+    if (!step.classList.contains("is-active") || !votesBox || !changeBox) return false;
+    const vh = window.innerHeight;
+    if (votesBox.top < -1 || changeBox.bottom > vh + 1 || votesBox.bottom > vh + 1) return false;
+    // Corn starts fully lowered and rises after the fill transition. Reduced
+    // motion only shortens the duration; the delay still has to elapse.
+    return [...votes.querySelectorAll(".corn")].every((corn) => {
+      const ty = new DOMMatrix(getComputedStyle(corn).transform).m42;
+      return ty < corn.getBoundingClientRect().height * 0.5;
+    });
+  });
+  const boxes = await page.evaluate(() => ({
+    votes: (() => {
+      const el = document.getElementById("votes");
+      const rect = el.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, text: el.innerText, label: el.getAttribute("aria-label") };
+    })(),
+    change: (() => {
+      const el = document.getElementById("change");
+      const rect = el.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, text: el.textContent, hidden: el.hidden };
+    })(),
+    vh: window.innerHeight,
+  }));
+  assert.equal(boxes.change.hidden, false, `${label} Change RSVP hidden`);
+  assert.match(boxes.change.text, /Change RSVP/, `${label} Change RSVP`);
+  assert.match(boxes.votes.text, /votes so far/i, `${label} standings`);
+  assert.match(boxes.votes.text, /The Princess Bride/, `${label} princess tub`);
+  assert.match(boxes.votes.text, /Top Gun: Maverick/, `${label} top gun tub`);
+  assert.match(boxes.votes.label, /The Princess Bride 2/, `${label} princess count`);
+  assert.match(boxes.votes.label, /Top Gun: Maverick 1/, `${label} top gun count`);
+  assert.ok(boxes.votes.top >= -1 && boxes.votes.bottom <= boxes.vh + 1, `${label} standings in view`);
+  assert.ok(boxes.change.top >= -1 && boxes.change.bottom <= boxes.vh + 1, `${label} Change RSVP in view`);
+}
+
 for (const [id, title] of movies) {
   for (const answer of ["yes", "no"]) {
     const conditional = answer === "no";
@@ -98,15 +150,10 @@ for (const [id, title] of movies) {
     assert.equal(payload.p_would_attend, conditional ? id : "both");
     assert.equal(done.kicker, "Your vote");
     assert.equal(done.line, title);
-    if (conditional) {
-      assert.equal(done.sub, `if ${title} wins`);
-      assert.equal(done.headingHidden, true);
-      assert.equal(done.heading, `If ${title} wins.`);
-    } else {
-      assert.equal(done.sub, "");
-      assert.equal(done.headingHidden, false);
-      assert.equal(done.heading, "See you Saturday.");
-    }
+    assert.equal(done.sub, "");
+    assert.equal(done.headingHidden, false);
+    assert.equal(done.heading, conditional ? "See you Saturday if it wins." : "See you Saturday.");
+    await confirmChrome(page, `${id} ${answer}`);
     if (shots) await page.screenshot({ path: `${shots}/${id}-${answer}-confirm.png` });
     console.log("ok", id, answer, button, JSON.stringify(ask.sub), "->", payload.p_would_attend);
     await context.close();
@@ -130,6 +177,8 @@ for (const [id, title] of movies) {
   assert.equal(payload.p_vote, null);
   assert.equal(done.line, "We'll see you next time!");
   assert.equal(done.heading, "We'll see you next time!");
+  assert.equal(done.headingHidden, true);
+  await confirmChrome(page, "cant");
   if (shots) await page.screenshot({ path: `${shots}/cant-confirm.png` });
   console.log("ok cant");
   await context.close();

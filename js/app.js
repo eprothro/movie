@@ -492,9 +492,7 @@ function cardFor() {
     case "confirm": {
       if (!r) return ["", "", ""];
       if (r.would_attend === "none") return ["", "We'll see you next time!", ""];
-      const title = movieTitle(r.vote || r.would_attend);
-      const only = r.would_attend !== "both";
-      return ["Your vote", title, only ? `if ${title} wins` : ""];
+      return ["Your vote", movieTitle(r.vote || r.would_attend), ""];
     }
     default:
       return ["", "", ""];
@@ -559,9 +557,10 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
     ? "We'll see you next time!"
     : definite
       ? "See you Saturday."
-      : `If ${movieTitle(rsvp.vote || rsvp.would_attend)} wins.`;
-  // "See you Saturday." is only for a guest who is coming either way.
-  els.confirmTitle.classList.toggle("sr-only", !definite);
+      : "See you Saturday if it wins.";
+  // Can't-make-it already says it on the screen. A coming guest, conditional
+  // or not, gets the heading under the screen.
+  els.confirmTitle.classList.toggle("sr-only", !coming);
   els.confirmSub.textContent = "";
   els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });
