@@ -1,4 +1,4 @@
-const CACHE = "movie-night-v4";
+const CACHE = "movie-night-v5";
 const ASSETS = [
   "/",
   "/index.html",
@@ -22,6 +22,7 @@ const ASSETS = [
   "/assets/scene/oak.svg",
   "/assets/scene/fence.svg",
   "/assets/scene/grass.svg",
+  "/assets/scene/meadow.svg",
   "/favicon.svg",
   "/favicon-32.png",
   "/apple-touch-icon.png",

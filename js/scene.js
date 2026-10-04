@@ -2,7 +2,6 @@
 // the RSVP stage reaches the top of the viewport) walks the camera toward the
 // screen. Every frame writes transforms only; layout is read on resize.
 
-const HORIZON = 0.42; // final horizon height, fraction of the stage
 const TILT = 0.11; // horizon starts this much lower, as if looking up
 const LIT_AT = 0.42;
 const LEADER_STEP = 0.16;
@@ -26,7 +25,13 @@ const FLIES = {
   far: { n: 16, r: [1.1, 1.7], drift: 2.2 },
   mid: { n: 12, r: [2.4, 3.6], drift: 4.5 },
   near: { n: 9, r: [6, 11], drift: 9 },
+  fore: { n: 10, r: [2.6, 5.5], drift: 6 },
 };
+
+// Fade the vote title while the screen is still this far below it, then hide
+// it. A later hard cutoff guarantees the two never share pixels.
+const CLEAR_FROM = 108;
+const CLEAR_TO = 60;
 
 function populate(world) {
   const rand = seeded(7);
@@ -37,7 +42,8 @@ function populate(world) {
     for (let i = 0; i < cfg.n; i += 1) {
       const fly = document.createElement("i");
       fly.className = "ff";
-      const x = group.dataset.flies === "near" ? (i % 2 ? pick(4, 30) : pick(70, 96)) : pick(2, 98);
+      const kind = group.dataset.flies;
+      const x = kind === "near" || kind === "fore" ? (i % 2 ? pick(3, 28) : pick(72, 97)) : pick(2, 98);
       fly.style.cssText =
         `--x:${x.toFixed(1)}%;--y:${pick(8, 92).toFixed(1)}%;` +
         `--r:calc(${pick(...cfg.r).toFixed(2)} * var(--s));` +
@@ -60,7 +66,7 @@ function populate(world) {
   }
 }
 
-export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
+export function createScene({ world, stage, hero, hold, reduced, onScreen }) {
   populate(world);
 
   const layers = [...world.querySelectorAll(".L, .sky, .ground")].map((el) => {
@@ -90,9 +96,13 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
   const beam = world.querySelector("#beam");
   const hand = world.querySelector("#leader-hand");
   const leader = world.querySelector(".leader");
+  const fore = world.querySelector("#fore");
   const root = document.body;
 
   let W = 0;
+  let horizon = 0.42;
+  let screenTop = 0;
+  let holdBottom = 0;
   let H = 0;
   let hy = 0;
   let drop = 0;
@@ -119,7 +129,8 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
   function measure() {
     W = world.clientWidth;
     H = world.clientHeight;
-    hy = H * HORIZON;
+    horizon = Number(getComputedStyle(document.documentElement).getPropertyValue("--hz")) || 0.42;
+    hy = H * horizon;
     drop = H * TILT;
     layers.forEach((layer) => {
       const { el } = layer;
@@ -127,6 +138,11 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
       layer.last = "";
     });
     faceBottom = screenLayer.offsetTop + face.offsetTop + face.offsetHeight;
+    screenTop = screenLayer.offsetTop;
+    hold.style.transform = "";
+    written.delete(`${hold.className}|transform`);
+    const holdRect = hold.getBoundingClientRect();
+    holdBottom = holdRect.bottom;
     lensY = projector.offsetTop + projector.offsetHeight * (45 / 110);
     stageTop = Math.max(1, stage.getBoundingClientRect().top + window.scrollY);
     target = reduced ? 1 : clamp(window.scrollY / stageTop);
@@ -164,6 +180,27 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
         }
       }
     }
+
+    if (!reduced) {
+      const rise = smooth(0.46, 0.62, (e * stageTop) / H);
+      const edge = hy + dy + screenScale * (screenTop - hy);
+      const gap = edge - holdBottom;
+      // Gap keeps it off the screen; the scroll cap finishes the fade once the
+      // leader is up, so it doesn't hang as a ghost above the countdown.
+      const clear = Math.min(smooth(CLEAR_TO, CLEAR_FROM, gap), 1 - smooth(0.6, 0.72, e));
+      // Leave upward, away from the screen, instead of dissolving on top of it.
+      const up = (1 - clear) * 28;
+      const down = (1 - rise) * 12;
+      const o = edge < holdBottom - up + 16 ? 0 : Math.round(rise * clear * 100) / 100;
+      write(hold, "opacity", String(o));
+      write(hold, "visibility", o <= 0 ? "hidden" : "visible");
+      write(hold, "transform", `translate3d(0,${(down - up).toFixed(1)}px,0)`);
+    }
+
+    const foreIn = smooth(0.8, 1, e);
+    write(fore, "opacity", foreIn.toFixed(2));
+    write(fore, "visibility", foreIn <= 0 ? "hidden" : "visible");
+    write(fore, "transform", `translate3d(0,${((1 - foreIn) * 48).toFixed(1)}px,0)`);
 
     const yTop = hy + dy + screenScale * (faceBottom - hy);
     const yLens = hy + dy + projScale * (lensY - hy);
@@ -203,7 +240,6 @@ export function createScene({ world, stage, hero, beat, reduced, onScreen }) {
     if (reduced) return;
     const y = p * stageTop;
     write(hero, "opacity", (1 - smooth(H * 0.05, H * 0.42, y)).toFixed(2));
-    write(beat, "opacity", (smooth(0.12, 0.24, p) * (1 - smooth(0.66, 0.8, p))).toFixed(2));
   }
 
   function tick(time) {

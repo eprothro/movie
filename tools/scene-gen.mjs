@@ -219,4 +219,35 @@ function rolling(W, H, crest, amp, waves, fill, extra = "") {
   writeFileSync(`${out}/oak.svg`, svg(W, H, `<g fill="#05080d">${trunk}${lobes}</g>`));
 }
 
+// Foreground meadow at the RSVP stage: a back row whose tips catch the screen
+// light, and a darker front row that frames the edges.
+{
+  const W = 4800;
+  const H = 400;
+  const blade = (x, h, lean, w) =>
+    `<path d="M${f(x - w)} ${H} Q ${f(x + lean * 0.3)} ${f(H - h * 0.6)} ${f(x + lean)} ${f(H - h)} Q ${f(x + lean * 0.2 + w * 0.4)} ${f(H - h * 0.55)} ${f(x + w)} ${H} Z"/>`;
+  let back = "";
+  let front = "";
+  for (let i = 0; i < 700; i += 1) {
+    const x = r(0, W);
+    const edge = Math.abs(x - W / 2) / (W / 2);
+    back += blade(x, r(70, 190) * (0.7 + edge * 0.5), r(-30, 30), r(4, 9));
+  }
+  for (let i = 0; i < 260; i += 1) {
+    const x = r(0, W);
+    const edge = Math.abs(x - W / 2) / (W / 2);
+    front += blade(x, r(40, 120) + Math.pow(edge, 2) * r(120, 260), r(-50, 50), r(6, 13));
+  }
+  const defs =
+    `<defs><linearGradient id="tip" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0.35" stop-color="#5b4a2e"/><stop offset="0.6" stop-color="#1d1a14"/><stop offset="1" stop-color="#07090b"/>` +
+    `</linearGradient></defs>`;
+  const body =
+    defs +
+    `<g fill="url(#tip)" opacity="0.9">${back}</g>` +
+    `<rect y="${H - 30}" width="${W}" height="30" fill="#040608"/>` +
+    `<g fill="#040608">${front}</g>`;
+  writeFileSync(`${out}/meadow.svg`, svg(W, H, body, 'preserveAspectRatio="xMidYMax slice"'));
+}
+
 console.log("scene art written to", out);
