@@ -6,6 +6,8 @@ const TILT = 0.11; // horizon starts this much lower, as if looking up
 const LIT_AT = 0.42;
 const LEADER_STEP = 0.16;
 const CARD_AT = LIT_AT + LEADER_STEP * 3;
+// Each number of the film leader, once the scroll has lit the screen.
+const BEAT_MS = 900;
 
 const clamp = (n, a = 0, b = 1) => Math.min(b, Math.max(a, n));
 const smooth = (a, b, x) => {
@@ -145,6 +147,9 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
   let screenState = "";
   let leaderN = "";
   let lit = null;
+  // idle until the lights, then playing, done, or skip (returning guest / reduced).
+  let leaderMode = reduced ? "skip" : "idle";
+  let handRaf = 0;
   let hint = 0;
   let started = reduced;
   let walking = null;
@@ -223,29 +228,62 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
       write(beam, "transform", `translate3d(0,${yTop.toFixed(1)}px,0) scale(${screenScale.toFixed(4)},${(span / 100).toFixed(4)})`);
     }
 
-    const isLit = reduced || e >= LIT_AT;
-    if (isLit !== lit) {
-      lit = isLit;
-      root.classList.toggle("lit", isLit);
+    const crossed = reduced || e >= LIT_AT;
+    if (crossed !== lit) {
+      lit = crossed;
+      root.classList.toggle("lit", crossed);
     }
 
-    let state = "off";
-    if (reduced || e >= CARD_AT) state = "card";
-    else if (isLit) state = "leader";
-    if (state === "leader") {
-      const seg = (e - LIT_AT) / LEADER_STEP;
-      const n = String(clamp(3 - Math.floor(seg), 1, 3));
+    if (leaderMode === "idle" && e >= LIT_AT) playLeader();
+    else if (leaderMode === "skip" && crossed) showScreen("card");
+    else if (leaderMode === "done") showScreen("card");
+    else if (!crossed && leaderMode !== "playing") showScreen("off");
+  }
+
+  function showScreen(state) {
+    if (state === screenState) return;
+    screenState = state;
+    root.dataset.screen = state;
+    onScreen?.(state);
+  }
+
+  // Time-based, so a flick that has already passed the screen still plays
+  // 3, then 2, then 1, and only then the ask.
+  function playLeader() {
+    if (leaderMode !== "idle") return;
+    leaderMode = "playing";
+    const t0 = performance.now();
+    showScreen("leader");
+    const step = (now) => {
+      if (leaderMode !== "playing") return;
+      const seg = (now - t0) / BEAT_MS;
+      if (seg >= 3) {
+        leaderMode = "done";
+        showScreen("card");
+        return;
+      }
+      const n = String(3 - Math.floor(seg));
       if (n !== leaderN) {
         leaderN = n;
         leader.dataset.n = n;
       }
-      write(hand, "transform", `rotate(${((seg % 1) * 360).toFixed(0)}deg)`);
-    }
-    if (state !== screenState) {
-      screenState = state;
-      root.dataset.screen = state;
-      onScreen?.(state);
-    }
+      write(hand, "transform", `rotate(${((seg % 1) * 360).toFixed(1)}deg)`);
+      handRaf = requestAnimationFrame(step);
+    };
+    handRaf = requestAnimationFrame(step);
+  }
+
+  function skipLeader() {
+    if (leaderMode === "done" || leaderMode === "skip") return;
+    leaderMode = "skip";
+    cancelAnimationFrame(handRaf);
+    if (lit || reduced) showScreen("card");
+  }
+
+  function allowLeader() {
+    if (leaderMode !== "skip" || reduced) return;
+    leaderMode = "idle";
+    if (current >= LIT_AT || target >= LIT_AT) playLeader();
   }
 
   function textFx(p) {
@@ -296,6 +334,7 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
   }
 
   function stopWalk() {
+    document.documentElement.classList.remove("is-walking");
     if (!walking) return;
     cancelAnimationFrame(walking.raf);
     walking.off();
@@ -310,6 +349,7 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
       return;
     }
     start();
+    document.documentElement.classList.add("is-walking");
     const w0 = walk.at(from / stageTop);
     const w1 = walk.at(top / stageTop);
     const ms = Math.max(600, WALK_MS * Math.abs(w1 - w0));
@@ -371,6 +411,8 @@ export function createScene({ world, stage, hero, reduced, onScreen, onStart }) 
       }
       walkTo(stageTop, done);
     },
+    skipLeader,
+    allowLeader,
     measure,
   };
 }
