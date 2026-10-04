@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Booth · Movie Night</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#050814">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/admin.css">
+  <style>html{background:#050814;color:#f6f1e7}body{margin:0}</style>
+  <script>
+    try {
+      if (sessionStorage.getItem("prothro-movie-admin-pin")) document.documentElement.classList.add("has-pin");
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div class="night" aria-hidden="true"><img src="/assets/scene/stars.svg" alt=""></div>
+  <main class="wrap">
+    <section class="pin-screen" id="pin-screen">
+      <p class="eyebrow">Projection booth</p>
+      <h1>Movie <em>Night</em></h1>
+      <div class="pin-dots" id="pin-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <p class="sr-only" id="pin-live" aria-live="polite"></p>
+      <div class="keypad" id="keypad" role="group" aria-label="PIN keypad">
+        <button type="button" data-digit="1">1</button>
+        <button type="button" data-digit="2">2</button>
+        <button type="button" data-digit="3">3</button>
+        <button type="button" data-digit="4">4</button>
+        <button type="button" data-digit="5">5</button>
+        <button type="button" data-digit="6">6</button>
+        <button type="button" data-digit="7">7</button>
+        <button type="button" data-digit="8">8</button>
+        <button type="button" data-digit="9">9</button>
+        <button type="button" class="key-quiet" id="pin-clear" aria-label="Clear PIN">Clear</button>
+        <button type="button" data-digit="0">0</button>
+        <button type="button" class="key-quiet" id="pin-del" aria-label="Delete digit">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h10a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 18H9l-5.5-6z M12.5 9.5l5 5 M17.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <button type="button" class="unlock" id="unlock" disabled>Unlock</button>
+      <p class="pin-error" id="pin-error" role="alert"></p>
+    </section>
+
+    <p id="opening" class="opening">Warming up the projector…</p>
+
+    <section class="book" id="book" hidden>
+      <header class="book-head">
+        <div>
+          <p class="eyebrow">Projection booth</p>
+          <h2>Movie <em>Night</em></h2>
+        </div>
+        <div class="book-actions">
+          <button type="button" class="chip" id="refresh">Refresh</button>
+          <button type="button" class="chip" id="lock">Lock</button>
+        </div>
+      </header>
+      <p class="book-error" id="book-error" role="alert" hidden></p>
+
+      <div class="projection" id="projection"></div>
+      <p class="tally" id="tally"></p>
+
+      <div class="switches">
+        <button type="button" class="toggle" id="toggle-rsvp" aria-pressed="true">
+          <span><strong>RSVPs</strong><small id="rsvp-switch-label">Open</small></span>
+          <span class="switch" aria-hidden="true"><i></i></span>
+        </button>
+        <button type="button" class="toggle" id="toggle-vote" aria-pressed="true">
+          <span><strong>Voting</strong><small id="vote-switch-label">Open</small></span>
+          <span class="switch" aria-hidden="true"><i></i></span>
+        </button>
+      </div>
+
+      <h3 class="list-head">Guests <span id="guest-count"></span></h3>
+      <div id="guest-list" class="guests"></div>
+    </section>
+  </main>
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>
