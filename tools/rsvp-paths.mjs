@@ -457,7 +457,14 @@ async function introAt(now, viewport) {
       height: box.height,
       width: box.width,
       rm: document.getElementById("rm-date").textContent,
-      bring: document.querySelector(".hero .bring").textContent,
+      bring: [...document.querySelector(".hero .bring").children].map((el) => el.textContent).join("|"),
+      bringGaps: (() => {
+        const gaps = (el) => {
+          const [a, dot, b] = [...el.children].map((node) => node.getBoundingClientRect());
+          return { left: dot.left - a.right, right: b.left - dot.right };
+        };
+        return { bring: gaps(document.querySelector(".hero .bring")), when: gaps(document.querySelector(".when")) };
+      })(),
       countdown: document.getElementById("countdown").textContent,
       countSize: parseFloat(getComputedStyle(document.getElementById("countdown")).fontSize),
       numSize: document.querySelector("#countdown b")
@@ -483,7 +490,10 @@ for (const [now, tonight, label] of introCases) {
   assert.equal(info.date, tonight ? "Tonight" : "Saturday, Oct 10", label);
   assert.equal(info.rm, tonight ? "Tonight" : "Saturday, Oct 10", label);
   assert.equal(info.place, tonight ? "Directions" : "Bullard, TX", label);
-  assert.equal(info.bring, "Snacks provided · Bring your own chair", label);
+  assert.equal(info.bring, "Snacks provided||Bring your own chair", label);
+  assert.ok(Math.abs(info.bringGaps.bring.left - info.bringGaps.bring.right) < 1, `${label} dot ${info.bringGaps.bring.left} ${info.bringGaps.bring.right}`);
+  assert.ok(Math.abs(info.bringGaps.bring.left - info.bringGaps.when.left) < 1, `${label} dot vs date`);
+  assert.ok(Math.abs(info.bringGaps.bring.right - info.bringGaps.when.right) < 1, `${label} dot vs showtime`);
   if (info.numSize) assert.ok(info.numSize >= info.unitSize + 6, `${label} countdown type ${info.numSize}/${info.unitSize}`);
   else assert.ok(info.countSize >= 16, `${label} countdown size ${info.countSize}`);
   assert.match(info.when, /Showtime/, label);
@@ -544,7 +554,17 @@ for (const viewport of [
     const prev = window.__scrollY ?? -1;
     window.__scrollY = y;
     window.__scrollStable = y === prev ? (window.__scrollStable || 0) + 1 : 0;
-    return document.body.dataset.screen === "card" && window.__scrollStable > 2 && y > 80;
+    const leader = parseFloat(getComputedStyle(document.querySelector(".leader")).opacity);
+    const card = parseFloat(getComputedStyle(document.getElementById("screen-card")).opacity);
+    const posters = parseFloat(getComputedStyle(document.getElementById("posters")).opacity);
+    return (
+      document.body.dataset.screen === "card" &&
+      leader < 0.05 &&
+      card > 0.98 &&
+      posters > 0.98 &&
+      window.__scrollStable > 2 &&
+      y > 80
+    );
   });
   const choice = await page.evaluate(() => {
     const arts = [...document.querySelectorAll(".poster-art")].map((el) => el.getBoundingClientRect());
@@ -553,6 +573,9 @@ for (const viewport of [
     const style = getComputedStyle(document.querySelector(".choice-or"));
     return {
       text: document.querySelector(".choice-or").textContent,
+      titleOpacity: parseFloat(getComputedStyle(document.querySelector(".poster-title")).opacity),
+      titleColor: getComputedStyle(document.querySelector(".poster-title")).color,
+      leaderOpacity: parseFloat(getComputedStyle(document.querySelector(".leader")).opacity),
       font: style.fontFamily,
       style: style.fontStyle,
       color: style.color,
@@ -565,6 +588,8 @@ for (const viewport of [
   });
   const size = `${viewport.width}x${viewport.height}`;
   assert.equal(choice.text, "or", size);
+  assert.equal(choice.titleOpacity, 1, `${size} title opacity`);
+  assert.ok(choice.leaderOpacity < 0.05, `${size} leader still up`);
   assert.equal(choice.style, "italic", size);
   assert.ok(choice.or.w >= 32 && choice.or.h >= 32, size);
   const sideBySide = choice.arts[0].b > choice.arts[1].t && choice.arts[1].l > choice.arts[0].r - 8;
@@ -578,7 +603,7 @@ for (const viewport of [
   for (const poster of choice.posters) {
     assert.ok(poster.l >= -1 && poster.r <= choice.vw + 1, `${size} poster offscreen`);
   }
-  console.log("ok choice", size, sideBySide ? "side by side" : "stacked", `or ${Math.round(choice.or.cx)},${Math.round(choice.or.cy)}`);
+  console.log("ok choice", size, sideBySide ? "side by side" : "stacked", `title ${choice.titleOpacity} ${choice.titleColor}`, `leader ${choice.leaderOpacity}`);
   if (shots) {
     await page.screenshot({ path: `${shots}/choice-or-${size}.png` });
     console.log("shot", `choice-or-${size}`);
@@ -596,10 +621,17 @@ if (shots) {
   for (const [now, viewport, name] of shotsWanted) {
     const { context, page, info } = await introAt(now, viewport);
     assert.equal(info.place, name.startsWith("intro-saturday") ? "Directions" : "Bullard, TX", name);
-    assert.equal(info.bring, "Snacks provided · Bring your own chair", name);
+    assert.equal(info.bring, "Snacks provided||Bring your own chair", name);
     assert.equal(info.countdown, countdownText(now, info.showtime), name);
     if (name.includes("1pm") && viewport.height > 740) assert.ok(info.gap >= 18, `${name} gap ${info.gap}`);
-    await page.waitForFunction(() => getComputedStyle(document.getElementById("cue")).opacity === "1");
+    await page.waitForFunction(() => {
+      const cue = getComputedStyle(document.getElementById("cue")).opacity === "1";
+      const top = document.querySelector(".screen").getBoundingClientRect().top;
+      const prev = window.__screenTop;
+      window.__screenTop = top;
+      window.__screenStable = prev != null && Math.abs(top - prev) < 0.5 ? (window.__screenStable || 0) + 1 : 0;
+      return cue && window.__screenStable > 4;
+    });
     const clear = await page.evaluate(() => {
       const c = document.getElementById("countdown").getBoundingClientRect();
       const screen = document.querySelector(".screen").getBoundingClientRect();

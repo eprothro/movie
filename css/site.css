@@ -947,6 +947,7 @@ h1 em {
 }
 
 .dot {
+  flex: none;
   width: 4px;
   height: 4px;
   border-radius: 50%;
@@ -955,6 +956,10 @@ h1 em {
 }
 
 .bring {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   margin: 6px 0 0;
   font-weight: 500;
   font-size: 13px;
