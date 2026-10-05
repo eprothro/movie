@@ -220,20 +220,22 @@
           <form class="step" data-step="name" id="name-form" novalidate>
             <div class="step-head"><button type="button" class="back" data-back aria-label="Back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="chairs" id="chairs" aria-hidden="true"></div><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i></span></div>
             <h2 class="sr-only" tabindex="-1" id="name-title">Who's coming?</h2>
-            <label class="field">
-              <span class="field-label">Name</span>
-              <input id="name" name="name" type="text" autocomplete="name" autocapitalize="words" enterkeyhint="done" maxlength="60" aria-required="true">
-            </label>
-            <div class="party">
-              <span class="field-label" id="party-label">Party of</span>
-              <div class="stepper" role="group" aria-labelledby="party-label">
-                <button type="button" id="party-dec" aria-label="Fewer people">
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                </button>
-                <output id="party-value" aria-live="polite">1</output>
-                <button type="button" id="party-inc" aria-label="More people">
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                </button>
+            <div class="who">
+              <label class="field">
+                <span class="field-label">Name</span>
+                <input id="name" name="name" type="text" autocomplete="name" autocapitalize="words" enterkeyhint="done" maxlength="60" aria-required="true">
+              </label>
+              <div class="party">
+                <span class="field-label" id="party-label">Party of</span>
+                <div class="stepper" role="group" aria-labelledby="party-label">
+                  <button type="button" id="party-dec" aria-label="Fewer people">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                  </button>
+                  <output id="party-value" aria-live="polite">1</output>
+                  <button type="button" id="party-inc" aria-label="More people">
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                  </button>
+                </div>
               </div>
             </div>
             <div class="hp" aria-hidden="true"><label>Leave blank <input id="hp-name" name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
