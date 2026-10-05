@@ -129,8 +129,19 @@ export function formatClock(date, timeZone) {
 }
 
 /**
+ * True from noon on the event's local calendar date through the end of that day.
+ * Both edges are wall-clock times in the event timezone, not the device timezone.
+ */
+export function isEventDayAfternoon(now, event) {
+  const start = zonedTime(event.year, event.month, event.day, 12, 0, event.timezone);
+  const end = zonedTime(event.year, event.month, event.day + 1, 0, 0, event.timezone);
+  return now >= start && now < end;
+}
+
+/**
  * Sunset and showtime for the event's local calendar date.
  * Returns null if the sun doesn't set (polar day/night).
+ * The instant does not depend on the viewer's clock; compare it with clockNow().
  */
 export function eventShowtime(event) {
   const noon = zonedTime(event.year, event.month, event.day, 12, 0, event.timezone);

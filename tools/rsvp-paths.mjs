@@ -18,13 +18,14 @@ const movies = [
 const browser = await chromium.launch();
 const submitted = [];
 
-async function newPage(viewport) {
+async function newPage(viewport, userAgent) {
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
     reducedMotion: "reduce",
+    ...(userAgent ? { userAgent } : {}),
   });
   await context.route("**/rest/v1/rpc/**", async (route) => {
     const fn = route.request().url().split("/rpc/")[1].split("?")[0];
@@ -130,6 +131,7 @@ async function confirmChrome(page, label) {
   assert.match(boxes.votes.label, /Top Gun: Maverick 1/, `${label} top gun count`);
   assert.ok(boxes.votes.top >= -1 && boxes.votes.bottom <= boxes.vh + 1, `${label} standings in view`);
   assert.ok(boxes.change.top < boxes.vh - 8, `${label} Change RSVP in view`);
+  assert.equal(await page.locator(".route-alt, [data-dir-alt]").count(), 0, `${label} secondary maps link`);
   const badge = await page.evaluate(() => {
     const labels = [...document.querySelectorAll(".you")].map((el) => el.textContent);
     const mine = document.querySelector(".bucket.is-mine .you");
@@ -195,30 +197,30 @@ for (const viewport of viewports) {
       const payload = submitted.at(-1);
       assert.equal(payload.p_vote, id);
       assert.equal(payload.p_would_attend, conditional ? id : "both");
+      assert.equal(done.kicker, "");
+      assert.equal(done.line, "See you Saturday");
+      assert.equal(done.headingHidden, true);
+      const line = await oneLine(page, "#screen-line");
+      assert.equal(line.lines, 1, `${id} ${answer} screen line wraps at ${size}`);
+      assert.equal(line.inside, true, `${id} ${answer} screen line overflows at ${size}`);
       if (conditional) {
-        assert.equal(done.kicker, "");
-        assert.equal(done.line, "See you Saturday");
         assert.equal(done.sub, `if ${title} wins`);
-        assert.equal(done.headingHidden, true);
         assert.equal(done.heading, `See you Saturday if ${title} wins.`);
-        const line = await oneLine(page, "#screen-line");
         const sub = await oneLine(page, "#screen-sub");
-        assert.equal(line.lines, 1, `${id} screen line wraps at ${size}`);
         assert.equal(sub.lines, 1, `${id} screen subtitle wraps at ${size}`);
-        assert.equal(line.inside, true, `${id} screen line overflows at ${size}`);
         assert.equal(sub.inside, true, `${id} screen subtitle overflows at ${size}`);
       } else {
-        assert.equal(done.kicker, "Your vote");
-        assert.equal(done.line, title);
         assert.equal(done.sub, "");
-        assert.equal(done.headingHidden, false);
         assert.equal(done.heading, "See you Saturday.");
+        const subLines = await page.locator("#screen-sub").evaluate((el) => el.getClientRects().length);
+        assert.equal(subLines, 0, `${id} still-in subline`);
       }
       await confirmChrome(page, `${id} ${answer}`);
-      const shoot = shots && (conditional || (id === "princess_bride" && answer === "yes"));
-      if (shoot) {
-        const name = conditional ? `conditional-${id}` : "still-in";
-        await page.screenshot({ path: `${shots}/${name}-${size}.png` });
+      if (shots && !conditional) {
+        await page.screenshot({ path: `${shots}/still-in-${id}-${size}.png` });
+      }
+      if (shots && conditional && id === "princess_bride") {
+        await page.screenshot({ path: `${shots}/conditional-${id}-${size}.png` });
       }
       console.log("ok", size, id, answer, button, JSON.stringify(ask.sub), "->", payload.p_would_attend);
       await context.close();
@@ -242,8 +244,289 @@ for (const viewport of viewports) {
     assert.equal(done.line, "We'll see you next time!");
     assert.equal(done.heading, "We'll see you next time!");
     assert.equal(done.headingHidden, true);
-    await confirmChrome(page, "cant");
-    console.log("ok", size, "cant");
+  await confirmChrome(page, "cant");
+  if (shots) await page.screenshot({ path: `${shots}/cant-${size}.png` });
+  console.log("ok", size, "cant");
+  await context.close();
+  }
+
+  {
+    const id = "princess_bride";
+    const title = "The Princess Bride";
+    const { context, page } = await newPage(viewport);
+    await page.evaluate(() => {
+      window.__seen = [];
+      const card = document.getElementById("screen-card");
+      const grab = () => {
+        const opacity = Number(getComputedStyle(card).opacity);
+        const swapping = card.classList.contains("is-swapping");
+        if (swapping || opacity < 0.9) return;
+        const snap = [
+          document.body.dataset.step,
+          document.getElementById("screen-kicker").textContent,
+          document.getElementById("screen-line").textContent,
+          document.getElementById("screen-sub").textContent,
+          document.getElementById("confirm-title").classList.contains("sr-only") ? "hidden" : "shown",
+        ].join("|");
+        const log = window.__seen;
+        if (log.at(-1) !== snap) log.push(snap);
+      };
+      new MutationObserver(grab).observe(card, {
+        subtree: true,
+        attributes: true,
+        characterData: true,
+        childList: true,
+      });
+      new MutationObserver(grab).observe(document.getElementById("confirm-title"), { attributes: true, childList: true, characterData: true });
+    });
+    const lineTop = () =>
+      page.evaluate(() => {
+        const line = document.getElementById("screen-line").getBoundingClientRect();
+        const face = document.querySelector(".face").getBoundingClientRect();
+        return Math.round(line.top - face.top);
+      });
+
+    await page.locator(`.poster[data-movie="${id}"]`).tap();
+    await page.locator('[data-also="yes"]').tap();
+    await page.fill("#name", "Westley");
+    await page.locator("#name-submit").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "confirm");
+    const still = await screen(page);
+    assert.equal(still.line, "See you Saturday");
+    assert.equal(still.sub, "");
+    assert.equal(still.kicker, "");
+    assert.equal(still.headingHidden, true);
+    const stillTop = await lineTop();
+
+    await page.locator("#change").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "pick");
+    await page.locator(`.poster[data-movie="${id}"]`).tap();
+    await page.waitForFunction(() => document.body.dataset.step === "other");
+    await page.locator('[data-also="no"]').tap();
+    await page.waitForFunction(() => document.body.dataset.step === "name");
+    const probably = await screen(page);
+    assert.equal(probably.line, "Who's coming?");
+    assert.equal(probably.sub, `(assuming ${title} wins)`);
+    await page.locator(".step.is-active [data-back]").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "other");
+    await page.locator('[data-also="yes"]').tap();
+    await page.waitForFunction(() => document.body.dataset.step === "name");
+    const back = await screen(page);
+    assert.equal(back.line, "Who's coming?");
+    assert.equal(back.sub, "");
+    await page.locator("#name-submit").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "confirm");
+    const again = await screen(page);
+    assert.equal(again.line, "See you Saturday");
+    assert.equal(again.sub, "");
+    assert.equal(again.kicker, "");
+    assert.equal(again.headingHidden, true);
+    assert.equal(await lineTop(), stillTop, `${size} still-in line moved`);
+
+    await page.locator("#change").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "pick");
+    await page.locator(`.poster[data-movie="${id}"]`).tap();
+    await page.waitForFunction(() => document.body.dataset.step === "other");
+    await page.locator('[data-also="no"]').tap();
+    await page.waitForFunction(() => document.body.dataset.step === "name");
+    await page.locator("#name-submit").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "confirm");
+    const conditional = await screen(page);
+    assert.equal(conditional.line, "See you Saturday");
+    assert.equal(conditional.sub, `if ${title} wins`);
+    assert.equal(conditional.kicker, "");
+    assert.equal(conditional.headingHidden, true);
+    const condTop = await lineTop();
+    assert.ok(Math.abs(condTop - stillTop) <= 1, `${size} headline shifted ${stillTop} vs ${condTop}`);
+
+    const seen = await page.evaluate(() => window.__seen);
+    const flashed = seen.filter((snap) => {
+      const [step, kicker, line, sub, heading] = snap.split("|");
+      if (kicker === "Your vote") return true;
+      if (line === title) return true;
+      if (heading === "shown" && step === "confirm") return true;
+      if (step === "confirm" && line === "See you Saturday" && sub.startsWith("if ") && !sub.includes(title)) return true;
+      return false;
+    });
+    assert.deepEqual(flashed, [], `${size} stale screen text`);
+    console.log("ok", size, "edit switch");
+    await context.close();
+  }
+}
+
+const maps = {
+  google: "https://www.google.com/maps/dir/?api=1&destination=32.15498,-95.36768",
+  apple: "https://maps.apple.com/?daddr=32.15498,-95.36768&dirflg=d",
+  geo: "geo:0,0?q=32.15498,-95.36768(Prothro%20Movie%20Night)",
+};
+
+async function directions(userAgent) {
+  const { context, page } = await newPage({ width: 390, height: 844 }, userAgent);
+  const info = await page.evaluate(() => ({
+    hrefs: [...document.querySelectorAll("[data-dir]")].map((a) => a.getAttribute("href")),
+    alts: document.querySelectorAll(".route-alt, [data-dir-alt]").length,
+    texts: [...document.querySelectorAll("a")].map((a) => a.textContent.replace(/\s+/g, " ").trim()),
+  }));
+  await context.close();
+  return info;
+}
+
+function assertMaps(info, expected, label) {
+  assert.equal(info.alts, 0, `${label} secondary link`);
+  assert.ok(info.hrefs.length >= 3, `${label} link count`);
+  for (const href of info.hrefs) assert.equal(href, expected, label);
+  assert.equal(info.texts.filter((text) => text === "Apple Maps" || text === "Google Maps").length, 0, label);
+  assert.ok(info.texts.some((text) => text.includes("Directions")), label);
+  assert.ok(info.texts.some((text) => text.includes("Bullard, TX")), label);
+}
+
+const iphoneUA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+const androidUA =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36";
+const desktopUA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+
+assertMaps(await directions(iphoneUA), maps.apple, "iphone");
+assertMaps(await directions(androidUA), maps.geo, "android");
+assertMaps(await directions(desktopUA), maps.google, "desktop");
+
+{
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto(base, { waitUntil: "load" });
+  const hrefs = await page.locator("[data-dir]").evaluateAll((links) => links.map((a) => a.getAttribute("href")));
+  assert.ok(hrefs.length >= 3);
+  for (const href of hrefs) assert.equal(href, maps.google, "html default");
+  assert.equal(await page.locator(".route-alt, [data-dir-alt]").count(), 0);
+  await context.close();
+}
+console.log("ok directions", maps.apple, maps.geo, maps.google);
+
+const introCases = [
+  ["2026-10-09T15:00-05:00", false, "friday"],
+  ["2026-10-10T11:59-05:00", false, "saturday-1159"],
+  ["2026-10-10T12:00-05:00", true, "saturday-noon"],
+  ["2026-10-10T13:00-05:00", true, "saturday-1pm"],
+  ["2026-10-10T21:00-05:00", true, "saturday-9pm"],
+  ["2026-10-11T10:00-05:00", false, "sunday"],
+  ["2026-10-10T16:59:00Z", false, "utc-before-noon-chicago"],
+  ["2026-10-10T17:00:00Z", true, "utc-noon-chicago"],
+];
+
+function countdownText(nowIso, showIso) {
+  const diff = new Date(showIso).getTime() - new Date(nowIso).getTime();
+  if (diff <= 0) return -diff < 3 * 3600e3 ? "Now showing" : "That was a good one";
+  const total = Math.floor(diff / 1000);
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const parts = [];
+  if (d) parts.push(`${d}d`);
+  if (d || h) parts.push(`${String(h).padStart(2, "0")}h`);
+  parts.push(`${String(m).padStart(2, "0")}m`, `${String(s).padStart(2, "0")}s`);
+  return parts.join("");
+}
+
+async function introAt(now, viewport) {
+  const context = await browser.newContext({
+    viewport,
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  page.on("pageerror", (error) => {
+    throw error;
+  });
+  const url = new URL(base);
+  url.searchParams.set("now", now);
+  await page.goto(url.href, { waitUntil: "load" });
+  await page.waitForFunction(() => /\d/.test(document.getElementById("showtime").textContent));
+  const info = await page.evaluate(() => {
+    const where = document.querySelector(".hero .where");
+    const box = where.getBoundingClientRect();
+    const cue = document.getElementById("cue").getBoundingClientRect();
+    return {
+      date: document.getElementById("date-label").textContent,
+      when: document.querySelector(".when").innerText.replace(/\s+/g, " ").trim(),
+      place: where.querySelector("span").textContent.trim(),
+      tonight: where.classList.contains("is-tonight"),
+      href: where.getAttribute("href"),
+      height: box.height,
+      width: box.width,
+      rm: document.getElementById("rm-date").textContent,
+      countdown: document.getElementById("countdown").textContent,
+      showtime: document.getElementById("showtime").dateTime,
+      gap: document.getElementById("countdown").getBoundingClientRect().top - box.bottom,
+      cueTop: cue.top,
+      cueBottom: cue.bottom,
+      vh: window.innerHeight,
+      scroll: window.scrollY,
+    };
+  });
+  return { context, page, info };
+}
+
+for (const [now, tonight, label] of introCases) {
+  const { context, info } = await introAt(now, { width: 390, height: 844 });
+  assert.equal(info.tonight, tonight, label);
+  assert.equal(info.date, tonight ? "Tonight" : "Saturday, Oct 10", label);
+  assert.equal(info.rm, tonight ? "Tonight" : "Saturday, Oct 10", label);
+  assert.equal(info.place, tonight ? "Directions" : "Bullard, TX", label);
+  assert.match(info.when, /Showtime/, label);
+  assert.match(info.when, /\d/, label);
+  assert.equal(info.href, maps.google, label);
+  const expected = countdownText(now, info.showtime);
+  assert.equal(info.countdown, expected, `${label} countdown`);
+  assert.doesNotMatch(info.countdown, /^-|00h00m00s/, `${label} broken countdown`);
+  assert.equal(info.scroll, 0, label);
+  if (tonight) {
+    assert.ok(info.height >= 44, `${label} height ${info.height}`);
+    assert.ok(info.width >= 44, `${label} width ${info.width}`);
+    assert.ok(info.gap >= 20, `${label} countdown gap ${info.gap}`);
+  } else {
+    assert.ok(info.gap < 12, `${label} normal gap changed ${info.gap}`);
+  }
+  assert.ok(info.cueBottom <= info.vh + 1, `${label} scroll cue clipped`);
+  console.log("ok intro", label, info.date, info.place, info.countdown, `gap ${Math.round(info.gap)}`);
+  await context.close();
+}
+
+{
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    userAgent: iphoneUA,
+  });
+  const page = await context.newPage();
+  const url = new URL(base);
+  url.searchParams.set("now", "2026-10-10T13:00-05:00");
+  await page.goto(url.href, { waitUntil: "load" });
+  const href = await page.locator(".hero .where").getAttribute("href");
+  assert.equal(href, maps.apple, "saturday iphone directions");
+  assert.equal(await page.locator(".hero .where span").textContent(), "Directions");
+  await context.close();
+  console.log("ok intro iphone directions");
+}
+
+if (shots) {
+  const shotsWanted = [
+    ["2026-10-10T13:00-05:00", { width: 375, height: 667 }, "intro-saturday-1pm-375x667"],
+    ["2026-10-10T13:00-05:00", { width: 390, height: 844 }, "intro-saturday-1pm-390x844"],
+    ["2026-10-10T21:00-05:00", { width: 390, height: 844 }, "intro-saturday-9pm-390x844"],
+    ["2026-10-09T15:00-05:00", { width: 390, height: 844 }, "intro-normal-390x844"],
+  ];
+  for (const [now, viewport, name] of shotsWanted) {
+    const { context, page, info } = await introAt(now, viewport);
+    assert.equal(info.place, name.startsWith("intro-saturday") ? "Directions" : "Bullard, TX", name);
+    assert.equal(info.countdown, countdownText(now, info.showtime), name);
+    if (name.includes("1pm")) assert.ok(info.gap >= 20, `${name} gap ${info.gap}`);
+    await page.waitForFunction(() => getComputedStyle(document.getElementById("cue")).opacity === "1");
+    await page.screenshot({ path: `${shots}/${name}.png` });
+    console.log("shot", name);
     await context.close();
   }
 }

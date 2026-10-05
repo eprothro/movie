@@ -1,5 +1,5 @@
 import { EVENT, TOKEN_KEY, movieTitle, shortTitle } from "./config.js";
-import { eventShowtime, formatClock } from "./sunset.js";
+import { eventShowtime, formatClock, isEventDayAfternoon } from "./sunset.js";
 import { createScene } from "./scene.js";
 
 const $ = (id) => document.getElementById(id);
@@ -68,8 +68,10 @@ const ERRORS = {
   network: "Couldn't save. Try again.",
 };
 
-const MAP_APPLE = `https://maps.apple.com/?daddr=${encodeURIComponent(EVENT.address)}&dirflg=d`;
-const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(EVENT.address)}`;
+const MAP_POINT = `${EVENT.latitude},${EVENT.longitude}`;
+const MAP_APPLE = `https://maps.apple.com/?daddr=${MAP_POINT}&dirflg=d`;
+const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${MAP_POINT}`;
+const MAP_GEO = `geo:0,0?q=${MAP_POINT}(Prothro%20Movie%20Night)`;
 const CHAIR_COLORS = ["#ffcf7d", "#ff9f8a", "#8fc4ff", "#9ee0a0", "#d4a6ff", "#ffe08a"];
 let advanceTimer = 0;
 let swapTimer = 0;
@@ -118,7 +120,28 @@ function writeToken(token) {
 
 /* Showtime + countdown */
 
+function clockNow() {
+  const raw = new URLSearchParams(location.search).get("now");
+  if (!raw) return new Date();
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function applyIntro() {
+  if (!isEventDayAfternoon(clockNow(), EVENT)) return;
+  const date = document.getElementById("date-label");
+  if (date) date.textContent = "Tonight";
+  const rm = document.getElementById("rm-date");
+  if (rm) rm.textContent = "Tonight";
+  const where = document.querySelector(".hero .where");
+  if (!where) return;
+  where.classList.add("is-tonight");
+  const label = where.querySelector("span");
+  if (label) label.textContent = "Directions";
+}
+
 function initShowtime() {
+  applyIntro();
   const times = eventShowtime(EVENT);
   if (!times) {
     els.showtime.textContent = "after sunset";
@@ -135,7 +158,7 @@ function initShowtime() {
 }
 
 function tickCountdown() {
-  const diff = state.showtime.getTime() - Date.now();
+  const diff = state.showtime.getTime() - clockNow().getTime();
   let html;
   let spoken;
   if (diff <= 0) {
@@ -169,20 +192,18 @@ function tickCountdown() {
 
 /* Directions */
 
-function prefersAppleMaps() {
+function mapsHref() {
   const ua = navigator.userAgent || "";
   const iPadOs = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return /iPad|iPhone|iPod/.test(ua) || iPadOs;
+  if (/iPad|iPhone|iPod/.test(ua) || iPadOs) return MAP_APPLE;
+  if (/Android/i.test(ua)) return MAP_GEO;
+  return MAP_GOOGLE;
 }
 
 function wireDirections() {
-  const apple = prefersAppleMaps();
+  const href = mapsHref();
   document.querySelectorAll("[data-dir]").forEach((a) => {
-    a.href = apple ? MAP_APPLE : MAP_GOOGLE;
-  });
-  document.querySelectorAll("[data-dir-alt]").forEach((a) => {
-    a.href = apple ? MAP_GOOGLE : MAP_APPLE;
-    a.textContent = apple ? "Google Maps" : "Apple Maps";
+    a.setAttribute("href", href);
   });
 }
 
@@ -494,7 +515,7 @@ function cardFor() {
       if (r.would_attend === "none") return ["", "We'll see you next time!", ""];
       const title = movieTitle(r.vote || r.would_attend);
       if (r.would_attend !== "both") return ["", "See you Saturday", `if ${title} wins`];
-      return ["Your vote", title, ""];
+      return ["", "See you Saturday", ""];
     }
     default:
       return ["", "", ""];
@@ -506,17 +527,21 @@ function paintScreen() {
   const key = `${kicker}|${line}|${sub}`;
   if (key === lastCard) return;
   const first = !lastCard;
+  const prevLine = lastCard.split("|")[1] || "";
   lastCard = key;
   const apply = () => {
     els.kicker.textContent = kicker;
     els.line.textContent = line;
     els.line.classList.toggle("is-long", line.length > 14);
-    els.card.classList.toggle("is-conditional", line === "See you Saturday" && sub.startsWith("if "));
+    els.card.classList.toggle("is-saturday", line === "See you Saturday");
     els.sub.textContent = sub;
     els.card.classList.remove("is-swapping");
   };
   window.clearTimeout(swapTimer);
-  if (first || reduced || document.body.dataset.screen !== "card") {
+  // Saturday copy swaps in place. A fade would hold the previous line
+  // ("Your vote", the title, or "if … wins") over the new one.
+  const saturday = prevLine === "See you Saturday" || line === "See you Saturday";
+  if (first || reduced || saturday || document.body.dataset.screen !== "card") {
     apply();
     return;
   }
@@ -562,10 +587,10 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
     : definite
       ? "See you Saturday."
       : `See you Saturday if ${title} wins.`;
-  // The conditional line lives on the screen. The heading stays for someone
-  // coming either way, and for assistive tech (the screen is hidden).
-  els.confirmTitle.classList.toggle("sr-only", !definite);
-  els.confirmTitle.closest(".step").classList.toggle("is-conditional", coming && !definite);
+  // Saturday is on the screen for anyone coming. The heading stays for
+  // assistive tech, because the screen itself is hidden from it.
+  els.confirmTitle.classList.add("sr-only");
+  els.confirmTitle.closest(".step").classList.toggle("is-coming", coming);
   els.confirmSub.textContent = "";
   els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });

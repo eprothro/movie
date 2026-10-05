@@ -596,21 +596,24 @@ a {
   line-height: 1.02;
 }
 
-/* "See you Saturday" uses the same size as a long title, kept to one line.
-   The "if … wins" line is one size down so the full title fits an SE. */
-.card.is-conditional {
-  gap: calc(0.85 * var(--s));
+/* Both coming confirmations share one centered line. The conditional
+   "if … wins" hangs under it, so the headline does not shift. */
+.card.is-saturday {
   padding: 0 calc(2.6 * var(--s));
 }
 
-.card.is-conditional .card-line {
+.card.is-saturday .card-line {
   font-size: calc(6.6 * var(--s));
   line-height: 1.02;
   white-space: nowrap;
   overflow-wrap: normal;
 }
 
-.card.is-conditional .card-sub {
+.card.is-saturday .card-sub:not(:empty) {
+  position: absolute;
+  left: calc(2.6 * var(--s));
+  right: calc(2.6 * var(--s));
+  top: calc(50% + 4.2 * var(--s));
   font-size: calc(4.15 * var(--s));
   line-height: 1.2;
   white-space: nowrap;
@@ -1006,6 +1009,44 @@ h1 em {
   color: var(--gold);
 }
 
+.where.is-tonight {
+  margin-top: 14px;
+  margin-bottom: 22px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font-weight: 650;
+  font-size: 17px;
+  color: #1d1206;
+  background: linear-gradient(180deg, #ffe9bd 0%, #ffcb76 100%);
+  box-shadow:
+    0 12px 32px -10px rgba(255, 176, 80, 0.75),
+    0 0 0 1px rgba(255, 220, 160, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.where.is-tonight svg {
+  width: 18px;
+  height: 18px;
+  color: #1d1206;
+}
+
+.where.is-tonight:active {
+  transform: scale(0.97);
+}
+
+/* On a short phone the movie screen sits higher. Lift the Saturday intro so the
+   countdown keeps its gap under the pill and still clears the screen. */
+@media (max-height: 740px) {
+  .hero:has(.where.is-tonight) {
+    padding-top: calc(var(--safe-t) + 10px);
+  }
+
+  .hero:has(.where.is-tonight) .when {
+    margin-top: 8px;
+  }
+}
+
 /* Scroll cue. Arrives after the screen inflates, leaves on the first scroll. */
 .cue {
   display: grid;
@@ -1369,25 +1410,6 @@ h1 em {
   color: var(--gold);
 }
 
-.route-alt {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 10px;
-  color: var(--faint);
-  text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.2);
-  text-underline-offset: 4px;
-}
-
-.route-alt::before {
-  content: "·";
-  margin-right: 14px;
-  color: var(--faint);
-  text-decoration: none;
-  display: inline-block;
-}
-
 /* Posters */
 
 .posters {
@@ -1655,13 +1677,6 @@ input[type="text"][aria-invalid="true"] {
 
 .step[data-step="confirm"] h2 {
   margin: 2px 0 0;
-}
-
-/* Conditional guests read Saturday on the screen, so the heading is gone.
-   Keep the standings about where that line sat, not jammed against the screen. */
-.step[data-step="confirm"].is-conditional .votes {
-  margin-top: 18px;
-}
   font-family: var(--display);
   font-variation-settings: "opsz" 96;
   font-weight: 600;
@@ -1669,6 +1684,12 @@ input[type="text"][aria-invalid="true"] {
   letter-spacing: -0.02em;
   line-height: 1.05;
   outline: none;
+}
+
+/* Coming guests read Saturday on the screen, so the heading is gone.
+   Keep the standings where that line sat, for both confirmations. */
+.step[data-step="confirm"].is-coming .votes {
+  margin-top: 18px;
 }
 
 .confirm-sub {
