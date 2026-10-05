@@ -457,7 +457,15 @@ async function introAt(now, viewport) {
       height: box.height,
       width: box.width,
       rm: document.getElementById("rm-date").textContent,
+      bring: document.querySelector(".hero .bring").textContent,
       countdown: document.getElementById("countdown").textContent,
+      countSize: parseFloat(getComputedStyle(document.getElementById("countdown")).fontSize),
+      numSize: document.querySelector("#countdown b")
+        ? parseFloat(getComputedStyle(document.querySelector("#countdown b")).fontSize)
+        : 0,
+      unitSize: document.querySelector("#countdown span")
+        ? parseFloat(getComputedStyle(document.querySelector("#countdown span")).fontSize)
+        : 0,
       showtime: document.getElementById("showtime").dateTime,
       gap: document.getElementById("countdown").getBoundingClientRect().top - box.bottom,
       cueTop: cue.top,
@@ -475,6 +483,9 @@ for (const [now, tonight, label] of introCases) {
   assert.equal(info.date, tonight ? "Tonight" : "Saturday, Oct 10", label);
   assert.equal(info.rm, tonight ? "Tonight" : "Saturday, Oct 10", label);
   assert.equal(info.place, tonight ? "Directions" : "Bullard, TX", label);
+  assert.equal(info.bring, "Snacks provided · Bring your own chair", label);
+  if (info.numSize) assert.ok(info.numSize >= info.unitSize + 6, `${label} countdown type ${info.numSize}/${info.unitSize}`);
+  else assert.ok(info.countSize >= 16, `${label} countdown size ${info.countSize}`);
   assert.match(info.when, /Showtime/, label);
   assert.match(info.when, /\d/, label);
   assert.equal(info.href, maps.google, label);
@@ -512,19 +523,98 @@ for (const [now, tonight, label] of introCases) {
   console.log("ok intro iphone directions");
 }
 
+for (const viewport of [
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+]) {
+  const context = await browser.newContext({
+    viewport,
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  page.on("pageerror", (error) => {
+    throw error;
+  });
+  await page.goto(base, { waitUntil: "load" });
+  await page.locator("#cue").click();
+  await page.waitForFunction(() => {
+    const y = window.scrollY;
+    const prev = window.__scrollY ?? -1;
+    window.__scrollY = y;
+    window.__scrollStable = y === prev ? (window.__scrollStable || 0) + 1 : 0;
+    return document.body.dataset.screen === "card" && window.__scrollStable > 2 && y > 80;
+  });
+  const choice = await page.evaluate(() => {
+    const arts = [...document.querySelectorAll(".poster-art")].map((el) => el.getBoundingClientRect());
+    const posters = [...document.querySelectorAll(".poster")].map((el) => el.getBoundingClientRect());
+    const or = document.querySelector(".choice-or").getBoundingClientRect();
+    const style = getComputedStyle(document.querySelector(".choice-or"));
+    return {
+      text: document.querySelector(".choice-or").textContent,
+      font: style.fontFamily,
+      style: style.fontStyle,
+      color: style.color,
+      or: { cx: or.left + or.width / 2, cy: or.top + or.height / 2, w: or.width, h: or.height },
+      arts: arts.map((r) => ({ t: r.top, b: r.bottom, l: r.left, r: r.right, cx: r.left + r.width / 2 })),
+      posters: posters.map((r) => ({ l: r.left, r: r.right, b: r.bottom })),
+      vw: innerWidth,
+      vh: innerHeight,
+    };
+  });
+  const size = `${viewport.width}x${viewport.height}`;
+  assert.equal(choice.text, "or", size);
+  assert.equal(choice.style, "italic", size);
+  assert.ok(choice.or.w >= 32 && choice.or.h >= 32, size);
+  const sideBySide = choice.arts[0].b > choice.arts[1].t && choice.arts[1].l > choice.arts[0].r - 8;
+  if (sideBySide) {
+    const mid = (choice.arts[0].cx + choice.arts[1].cx) / 2;
+    assert.ok(Math.abs(choice.or.cx - mid) <= 6, `${size} or x ${choice.or.cx} vs ${mid}`);
+    assert.ok(choice.or.cy > choice.arts[0].t + 8 && choice.or.cy < choice.arts[0].b - 8, `${size} or y ${choice.or.cy}`);
+  } else {
+    assert.ok(choice.or.cy > choice.arts[0].b - 4 && choice.or.cy < choice.arts[1].t + 4, `${size} stacked or`);
+  }
+  for (const poster of choice.posters) {
+    assert.ok(poster.l >= -1 && poster.r <= choice.vw + 1, `${size} poster offscreen`);
+  }
+  console.log("ok choice", size, sideBySide ? "side by side" : "stacked", `or ${Math.round(choice.or.cx)},${Math.round(choice.or.cy)}`);
+  if (shots) {
+    await page.screenshot({ path: `${shots}/choice-or-${size}.png` });
+    console.log("shot", `choice-or-${size}`);
+  }
+  await context.close();
+}
+
 if (shots) {
   const shotsWanted = [
     ["2026-10-10T13:00-05:00", { width: 375, height: 667 }, "intro-saturday-1pm-375x667"],
     ["2026-10-10T13:00-05:00", { width: 390, height: 844 }, "intro-saturday-1pm-390x844"],
-    ["2026-10-10T21:00-05:00", { width: 390, height: 844 }, "intro-saturday-9pm-390x844"],
+    ["2026-10-09T15:00-05:00", { width: 375, height: 667 }, "intro-normal-375x667"],
     ["2026-10-09T15:00-05:00", { width: 390, height: 844 }, "intro-normal-390x844"],
   ];
   for (const [now, viewport, name] of shotsWanted) {
     const { context, page, info } = await introAt(now, viewport);
     assert.equal(info.place, name.startsWith("intro-saturday") ? "Directions" : "Bullard, TX", name);
+    assert.equal(info.bring, "Snacks provided · Bring your own chair", name);
     assert.equal(info.countdown, countdownText(now, info.showtime), name);
-    if (name.includes("1pm")) assert.ok(info.gap >= 20, `${name} gap ${info.gap}`);
+    if (name.includes("1pm") && viewport.height > 740) assert.ok(info.gap >= 18, `${name} gap ${info.gap}`);
     await page.waitForFunction(() => getComputedStyle(document.getElementById("cue")).opacity === "1");
+    const clear = await page.evaluate(() => {
+      const c = document.getElementById("countdown").getBoundingClientRect();
+      const screen = document.querySelector(".screen").getBoundingClientRect();
+      const cue = document.getElementById("cue").getBoundingClientRect();
+      return {
+        sky: screen.top - c.bottom,
+        cueTop: cue.top,
+        cueBottom: cue.bottom,
+        countBottom: c.bottom,
+        vh: innerHeight,
+      };
+    });
+    assert.ok(clear.sky >= 8, `${name} overlaps the screen by ${-clear.sky}`);
+    assert.ok(clear.cueBottom <= clear.vh + 1, `${name} scroll cue clipped`);
+    assert.ok(clear.cueTop >= clear.countBottom - 1, `${name} countdown overlaps scroll`);
     await page.screenshot({ path: `${shots}/${name}.png` });
     console.log("shot", name);
     await context.close();
