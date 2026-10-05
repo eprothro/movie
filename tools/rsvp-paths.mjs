@@ -2,7 +2,7 @@
 // Run from the repo root, with the site already being served:
 //   python3 -m http.server 8765
 //   NODE_PATH=/tmp/pw/node_modules node tools/rsvp-paths.mjs
-import { chromium } from "playwright";
+import { chromium, webkit } from "playwright";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
@@ -652,6 +652,185 @@ if (shots) {
     await context.close();
   }
 }
+
+function keyboardShim() {
+  const listeners = { resize: new Set(), scroll: new Set() };
+  const fake = {
+    width: window.innerWidth,
+    height: window.innerHeight,
+    offsetTop: 0,
+    offsetLeft: 0,
+    pageTop: 0,
+    pageLeft: 0,
+    scale: 1,
+    addEventListener(type, fn) {
+      listeners[type]?.add(fn);
+    },
+    removeEventListener(type, fn) {
+      listeners[type]?.delete(fn);
+    },
+  };
+  const emit = (type) => listeners[type]?.forEach((fn) => fn(new Event(type)));
+  let keyboard = 0;
+  let base = 0;
+  const apply = () => {
+    fake.height = Math.round(window.innerHeight - keyboard);
+    fake.offsetTop = keyboard ? Math.max(0, Math.min(keyboard, window.scrollY - base)) : 0;
+    fake.pageTop = window.scrollY;
+  };
+  window.addEventListener(
+    "scroll",
+    () => {
+      if (!keyboard) return;
+      apply();
+      emit("scroll");
+    },
+    { passive: true },
+  );
+  document.addEventListener(
+    "focusin",
+    (event) => {
+      const id = event.target?.id;
+      if ((id !== "name" && id !== "cant-name") || keyboard) return;
+      base = window.scrollY;
+      let frame = 0;
+      const timer = setInterval(() => {
+        frame += 1;
+        keyboard = Math.round(336 * Math.min(1, frame / 8));
+        apply();
+        emit("resize");
+        if (frame >= 8) clearInterval(timer);
+      }, 40);
+    },
+    true,
+  );
+  Object.defineProperty(window, "visualViewport", { configurable: true, get: () => fake });
+}
+
+async function emptyNameSuite(browserType, engine) {
+  const engineBrowser = engine === "chromium" ? browser : await browserType.launch();
+  const variants = [
+    ["yes", "Count me in", false],
+    ["no", "Save our spot", false],
+    ["yes", "Update", true],
+  ];
+  for (const viewport of [
+    { width: 375, height: 667 },
+    { width: 390, height: 844 },
+  ]) {
+    for (const [also, label, update] of variants) {
+      const submittedHere = [];
+      const context = await engineBrowser.newContext({
+        viewport,
+        deviceScaleFactor: 2,
+        isMobile: true,
+        hasTouch: true,
+      });
+      await context.addInitScript(keyboardShim);
+      await context.route("**/rest/v1/rpc/**", async (route) => {
+        const fn = route.request().url().split("/rpc/")[1].split("?")[0];
+        const body = route.request().postDataJSON() || {};
+        if (fn === "movie_submit_rsvp") {
+          submittedHere.push(body);
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              ok: true,
+              token: "tok-test",
+              rsvp: {
+                name: body.p_name,
+                party_size: body.p_party_size,
+                would_attend: body.p_would_attend,
+                vote: body.p_vote,
+              },
+              standings: { ok: true, votes: { princess_bride: 2, top_gun: 1 }, rsvps_open: true, voting_open: true },
+            }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true, rsvp: null, votes: { princess_bride: 2, top_gun: 1 }, rsvps_open: true, voting_open: true }),
+        });
+      });
+      const page = await context.newPage();
+      page.on("pageerror", (error) => {
+        throw error;
+      });
+      await page.goto(base, { waitUntil: "load" });
+      await page.locator("#cue").click();
+      await page.waitForFunction(() => document.body.dataset.screen === "card", null, { timeout: 12000 });
+      await page.locator('.poster[data-movie="princess_bride"]').tap();
+      await page.locator(`[data-also="${also}"]`).tap();
+      await page.waitForFunction(() => document.body.dataset.step === "name");
+      if (update) {
+        await page.fill("#name", "Westley");
+        await page.locator("#name-submit").tap();
+        await page.waitForFunction(() => document.body.dataset.step === "confirm");
+        await page.locator("#change").tap();
+        await page.waitForFunction(() => document.body.dataset.step === "pick");
+        await page.locator('.poster[data-movie="princess_bride"]').tap();
+        await page.locator('[data-also="yes"]').tap();
+        await page.waitForFunction(() => document.body.dataset.step === "name");
+        await page.fill("#name", "");
+      }
+      await page.waitForTimeout(500);
+      const size = `${viewport.width}x${viewport.height}`;
+      const tag = `${engine} ${size} ${label}`;
+      assert.equal((await page.locator("#name-submit").innerText()).trim(), label, tag);
+      const sentBefore = submittedHere.length;
+      await page.evaluate(() => {
+        window.__ys = [];
+        const t0 = performance.now();
+        const tick = () => {
+          window.__ys.push(window.scrollY);
+          if (performance.now() - t0 < 3000) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
+      await page.locator("#name-submit").tap();
+      await page.waitForTimeout(3100);
+      const result = await page.evaluate(() => {
+        const ys = window.__ys;
+        const input = document.getElementById("name");
+        return {
+          min: Math.min(...ys),
+          max: Math.max(...ys),
+          n: ys.length,
+          invalid: input.classList.contains("is-invalid"),
+          errorHidden: document.getElementById("name-error").hidden,
+          errorText: document.getElementById("name-error").textContent,
+          step: document.body.dataset.step,
+        };
+      });
+      assert.ok(result.n > 30, tag);
+      assert.ok(result.max - result.min <= 4, `${tag} scroll ${result.min}..${result.max}`);
+      assert.equal(result.invalid, true, tag);
+      assert.equal(result.errorHidden, true, tag);
+      assert.equal(result.errorText, "", tag);
+      assert.equal(result.step, "name", tag);
+      assert.equal(submittedHere.length, sentBefore, `${tag} sent`);
+      if (shots && engine === "webkit" && label === "Count me in") {
+        await page.screenshot({ path: `${shots}/empty-name-${size}.png` });
+        console.log("shot", `empty-name-${size}`);
+      }
+      await page.fill("#name", "Buttercup");
+      assert.equal(await page.evaluate(() => document.getElementById("name").classList.contains("is-invalid")), false, tag);
+      await page.locator("#name-submit").tap();
+      await page.waitForFunction(() => document.body.dataset.step === "confirm");
+      assert.equal(submittedHere.length, sentBefore + 1, `${tag} saved`);
+      assert.equal(submittedHere.at(-1).p_name, "Buttercup", tag);
+      console.log("ok empty-name", tag, `scroll ${result.min}..${result.max}`);
+      await context.close();
+    }
+  }
+  if (engine !== "chromium") await engineBrowser.close();
+}
+
+await emptyNameSuite(chromium, "chromium");
+await emptyNameSuite(webkit, "webkit");
 
 await browser.close();
 console.log("all paths passed");

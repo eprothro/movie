@@ -1620,8 +1620,31 @@ input[type="text"]:focus {
   box-shadow: inset 0 0 0 2px var(--gold);
 }
 
-input[type="text"][aria-invalid="true"] {
-  box-shadow: inset 0 0 0 2px #ff8a7a;
+input[type="text"].is-invalid,
+input[type="text"].is-invalid:focus {
+  box-shadow:
+    inset 0 0 0 2px var(--gold),
+    0 0 0 5px rgba(255, 210, 126, 0.34);
+}
+
+input[type="text"].is-shaking {
+  animation: field-shake 0.42s ease;
+}
+
+@keyframes field-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
 }
 
 .party {
@@ -1967,6 +1990,10 @@ input[type="text"][aria-invalid="true"] {
 
   .choice-or {
     top: 91px;
+  }
+
+  input.is-shaking {
+    animation: none;
   }
 }
 

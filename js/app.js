@@ -257,6 +257,7 @@ function bind() {
   els.name.addEventListener("input", () => clearError(els.name, els.nameError));
   els.cantName.addEventListener("input", () => clearError(els.cantName, els.cantError));
   for (const input of [els.name, els.cantName]) {
+    input.addEventListener("animationend", () => input.classList.remove("is-shaking"));
     input.addEventListener("focus", () => {
       document.documentElement.classList.add("is-typing");
       placeField();
@@ -334,7 +335,7 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
 // While one is open, drop scroll-snap, pad by the overlap, and move the
 // field and its button into the visual viewport.
 let placeTimer = 0;
-let placing = false;
+let placeLockedUntil = 0;
 
 function typingField() {
   const el = document.activeElement;
@@ -349,7 +350,7 @@ function keyboardOverlap() {
 
 function placeField() {
   const input = typingField();
-  if (!input) return;
+  if (!input || performance.now() < placeLockedUntil) return;
   document.documentElement.classList.add("is-typing");
   document.documentElement.style.setProperty("--kb", `${keyboardOverlap()}px`);
   const vv = window.visualViewport;
@@ -359,15 +360,15 @@ function placeField() {
   const pad = 12;
   const field = input.getBoundingClientRect();
   const button = submit.getBoundingClientRect();
-  let delta = 0;
-  if (button.bottom > viewBottom - pad) delta = button.bottom - (viewBottom - pad);
-  if (field.top - delta < viewTop + pad) delta = field.top - (viewTop + pad);
+  const showButton = Math.max(0, button.bottom - (viewBottom - pad));
+  // Scrolling the button clear of the keyboard would hide the field. Do nothing:
+  // chasing both is what bounced the page for the whole keyboard animation.
+  if (showButton && field.top - showButton < viewTop + pad) return;
+  const showField = Math.min(0, field.top - (viewTop + pad));
+  const delta = showButton || showField;
   if (Math.abs(delta) < 2) return;
-  placing = true;
+  placeLockedUntil = performance.now() + 500;
   window.scrollBy(0, delta);
-  requestAnimationFrame(() => {
-    placing = false;
-  });
 }
 
 function holdField(input) {
@@ -389,9 +390,30 @@ function releaseField() {
 }
 
 function onViewport() {
-  if (placing || !typingField()) return;
+  if (performance.now() < placeLockedUntil || !typingField()) return;
   window.clearTimeout(placeTimer);
-  placeTimer = window.setTimeout(placeField, 60);
+  placeTimer = window.setTimeout(placeField, 80);
+}
+
+// Empty name: focus the field, but do not let the keyboard or scroll-snap move the stage.
+function rejectEmpty(input, errorEl) {
+  errorEl.hidden = true;
+  errorEl.textContent = "";
+  const y = window.scrollY;
+  placeLockedUntil = performance.now() + 1200;
+  document.documentElement.classList.add("is-typing");
+  input.setAttribute("aria-invalid", "true");
+  input.classList.add("is-invalid");
+  input.classList.remove("is-shaking");
+  void input.offsetWidth;
+  input.classList.add("is-shaking");
+  input.focus({ preventScroll: true });
+  const until = performance.now() + 1200;
+  const pin = () => {
+    if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
+    if (performance.now() < until) requestAnimationFrame(pin);
+  };
+  requestAnimationFrame(pin);
 }
 
 function syncPick() {
@@ -633,7 +655,8 @@ function setError(input, el, code) {
 }
 
 function clearError(input, el) {
-  if (el.hidden) return;
+  input.classList.remove("is-invalid", "is-shaking");
+  if (el.hidden && !input.hasAttribute("aria-invalid")) return;
   el.hidden = true;
   el.textContent = "";
   input.removeAttribute("aria-invalid");
@@ -642,8 +665,7 @@ function clearError(input, el) {
 function submitComing() {
   const name = nameValue(els.name);
   if (!name || name.length > 60) {
-    setError(els.name, els.nameError, "name");
-    holdField(els.name);
+    rejectEmpty(els.name, els.nameError);
     return;
   }
   if (!state.pick) return setStep("pick");
@@ -668,8 +690,7 @@ function submitComing() {
 function submitCant() {
   const name = nameValue(els.cantName);
   if (!name || name.length > 60) {
-    setError(els.cantName, els.cantError, "name");
-    holdField(els.cantName);
+    rejectEmpty(els.cantName, els.cantError);
     return;
   }
   save(
