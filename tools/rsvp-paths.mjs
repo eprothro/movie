@@ -407,12 +407,27 @@ const introCases = [
   ["2026-10-09T15:00-05:00", false, "friday"],
   ["2026-10-10T11:59-05:00", false, "saturday-1159"],
   ["2026-10-10T12:00-05:00", true, "saturday-noon"],
-  ["2026-10-10T13:00-05:00", true, "saturday-afternoon"],
+  ["2026-10-10T13:00-05:00", true, "saturday-1pm"],
   ["2026-10-10T21:00-05:00", true, "saturday-9pm"],
   ["2026-10-11T10:00-05:00", false, "sunday"],
   ["2026-10-10T16:59:00Z", false, "utc-before-noon-chicago"],
   ["2026-10-10T17:00:00Z", true, "utc-noon-chicago"],
 ];
+
+function countdownText(nowIso, showIso) {
+  const diff = new Date(showIso).getTime() - new Date(nowIso).getTime();
+  if (diff <= 0) return -diff < 3 * 3600e3 ? "Now showing" : "That was a good one";
+  const total = Math.floor(diff / 1000);
+  const d = Math.floor(total / 86400);
+  const h = Math.floor((total % 86400) / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const parts = [];
+  if (d) parts.push(`${d}d`);
+  if (d || h) parts.push(`${String(h).padStart(2, "0")}h`);
+  parts.push(`${String(m).padStart(2, "0")}m`, `${String(s).padStart(2, "0")}s`);
+  return parts.join("");
+}
 
 async function introAt(now, viewport) {
   const context = await browser.newContext({
@@ -443,6 +458,8 @@ async function introAt(now, viewport) {
       width: box.width,
       rm: document.getElementById("rm-date").textContent,
       countdown: document.getElementById("countdown").textContent,
+      showtime: document.getElementById("showtime").dateTime,
+      gap: document.getElementById("countdown").getBoundingClientRect().top - box.bottom,
       cueTop: cue.top,
       cueBottom: cue.bottom,
       vh: window.innerHeight,
@@ -461,14 +478,19 @@ for (const [now, tonight, label] of introCases) {
   assert.match(info.when, /Showtime/, label);
   assert.match(info.when, /\d/, label);
   assert.equal(info.href, maps.google, label);
-  assert.match(info.countdown, /\d+d/, `${label} countdown still real`);
+  const expected = countdownText(now, info.showtime);
+  assert.equal(info.countdown, expected, `${label} countdown`);
+  assert.doesNotMatch(info.countdown, /^-|00h00m00s/, `${label} broken countdown`);
   assert.equal(info.scroll, 0, label);
   if (tonight) {
     assert.ok(info.height >= 44, `${label} height ${info.height}`);
     assert.ok(info.width >= 44, `${label} width ${info.width}`);
+    assert.ok(info.gap >= 20, `${label} countdown gap ${info.gap}`);
+  } else {
+    assert.ok(info.gap < 12, `${label} normal gap changed ${info.gap}`);
   }
   assert.ok(info.cueBottom <= info.vh + 1, `${label} scroll cue clipped`);
-  console.log("ok intro", label, info.date, info.place, info.when);
+  console.log("ok intro", label, info.date, info.place, info.countdown, `gap ${Math.round(info.gap)}`);
   await context.close();
 }
 
@@ -492,13 +514,16 @@ for (const [now, tonight, label] of introCases) {
 
 if (shots) {
   const shotsWanted = [
-    ["2026-10-10T13:00-05:00", { width: 375, height: 667 }, "intro-saturday-375x667"],
-    ["2026-10-10T13:00-05:00", { width: 390, height: 844 }, "intro-saturday-390x844"],
+    ["2026-10-10T13:00-05:00", { width: 375, height: 667 }, "intro-saturday-1pm-375x667"],
+    ["2026-10-10T13:00-05:00", { width: 390, height: 844 }, "intro-saturday-1pm-390x844"],
+    ["2026-10-10T21:00-05:00", { width: 390, height: 844 }, "intro-saturday-9pm-390x844"],
     ["2026-10-09T15:00-05:00", { width: 390, height: 844 }, "intro-normal-390x844"],
   ];
   for (const [now, viewport, name] of shotsWanted) {
     const { context, page, info } = await introAt(now, viewport);
     assert.equal(info.place, name.startsWith("intro-saturday") ? "Directions" : "Bullard, TX", name);
+    assert.equal(info.countdown, countdownText(now, info.showtime), name);
+    if (name.includes("1pm")) assert.ok(info.gap >= 20, `${name} gap ${info.gap}`);
     await page.waitForFunction(() => getComputedStyle(document.getElementById("cue")).opacity === "1");
     await page.screenshot({ path: `${shots}/${name}.png` });
     console.log("shot", name);

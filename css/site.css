@@ -1010,7 +1010,8 @@ h1 em {
 }
 
 .where.is-tonight {
-  margin-top: 12px;
+  margin-top: 14px;
+  margin-bottom: 22px;
   min-height: 48px;
   padding: 0 22px;
   border-radius: 999px;
@@ -1032,6 +1033,18 @@ h1 em {
 
 .where.is-tonight:active {
   transform: scale(0.97);
+}
+
+/* On a short phone the movie screen sits higher. Lift the Saturday intro so the
+   countdown keeps its gap under the pill and still clears the screen. */
+@media (max-height: 740px) {
+  .hero:has(.where.is-tonight) {
+    padding-top: calc(var(--safe-t) + 10px);
+  }
+
+  .hero:has(.where.is-tonight) .when {
+    margin-top: 8px;
+  }
 }
 
 /* Scroll cue. Arrives after the screen inflates, leaves on the first scroll. */

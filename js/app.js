@@ -158,7 +158,7 @@ function initShowtime() {
 }
 
 function tickCountdown() {
-  const diff = state.showtime.getTime() - Date.now();
+  const diff = state.showtime.getTime() - clockNow().getTime();
   let html;
   let spoken;
   if (diff <= 0) {
