@@ -494,7 +494,7 @@ function cardFor() {
       if (r.would_attend === "none") return ["", "We'll see you next time!", ""];
       const title = movieTitle(r.vote || r.would_attend);
       if (r.would_attend !== "both") return ["", "See you Saturday", `if ${title} wins`];
-      return ["Your vote", title, ""];
+      return ["", "See you Saturday", ""];
     }
     default:
       return ["", "", ""];
@@ -506,17 +506,21 @@ function paintScreen() {
   const key = `${kicker}|${line}|${sub}`;
   if (key === lastCard) return;
   const first = !lastCard;
+  const prevLine = lastCard.split("|")[1] || "";
   lastCard = key;
   const apply = () => {
     els.kicker.textContent = kicker;
     els.line.textContent = line;
     els.line.classList.toggle("is-long", line.length > 14);
-    els.card.classList.toggle("is-conditional", line === "See you Saturday" && sub.startsWith("if "));
+    els.card.classList.toggle("is-saturday", line === "See you Saturday");
     els.sub.textContent = sub;
     els.card.classList.remove("is-swapping");
   };
   window.clearTimeout(swapTimer);
-  if (first || reduced || document.body.dataset.screen !== "card") {
+  // Saturday copy swaps in place. A fade would hold the previous line
+  // ("Your vote", the title, or "if … wins") over the new one.
+  const saturday = prevLine === "See you Saturday" || line === "See you Saturday";
+  if (first || reduced || saturday || document.body.dataset.screen !== "card") {
     apply();
     return;
   }
@@ -562,10 +566,10 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
     : definite
       ? "See you Saturday."
       : `See you Saturday if ${title} wins.`;
-  // The conditional line lives on the screen. The heading stays for someone
-  // coming either way, and for assistive tech (the screen is hidden).
-  els.confirmTitle.classList.toggle("sr-only", !definite);
-  els.confirmTitle.closest(".step").classList.toggle("is-conditional", coming && !definite);
+  // Saturday is on the screen for anyone coming. The heading stays for
+  // assistive tech, because the screen itself is hidden from it.
+  els.confirmTitle.classList.add("sr-only");
+  els.confirmTitle.closest(".step").classList.toggle("is-coming", coming);
   els.confirmSub.textContent = "";
   els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });

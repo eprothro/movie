@@ -596,21 +596,24 @@ a {
   line-height: 1.02;
 }
 
-/* "See you Saturday" uses the same size as a long title, kept to one line.
-   The "if … wins" line is one size down so the full title fits an SE. */
-.card.is-conditional {
-  gap: calc(0.85 * var(--s));
+/* Both coming confirmations share one centered line. The conditional
+   "if … wins" hangs under it, so the headline does not shift. */
+.card.is-saturday {
   padding: 0 calc(2.6 * var(--s));
 }
 
-.card.is-conditional .card-line {
+.card.is-saturday .card-line {
   font-size: calc(6.6 * var(--s));
   line-height: 1.02;
   white-space: nowrap;
   overflow-wrap: normal;
 }
 
-.card.is-conditional .card-sub {
+.card.is-saturday .card-sub:not(:empty) {
+  position: absolute;
+  left: calc(2.6 * var(--s));
+  right: calc(2.6 * var(--s));
+  top: calc(50% + 4.2 * var(--s));
   font-size: calc(4.15 * var(--s));
   line-height: 1.2;
   white-space: nowrap;
@@ -1655,13 +1658,6 @@ input[type="text"][aria-invalid="true"] {
 
 .step[data-step="confirm"] h2 {
   margin: 2px 0 0;
-}
-
-/* Conditional guests read Saturday on the screen, so the heading is gone.
-   Keep the standings about where that line sat, not jammed against the screen. */
-.step[data-step="confirm"].is-conditional .votes {
-  margin-top: 18px;
-}
   font-family: var(--display);
   font-variation-settings: "opsz" 96;
   font-weight: 600;
@@ -1669,6 +1665,12 @@ input[type="text"][aria-invalid="true"] {
   letter-spacing: -0.02em;
   line-height: 1.05;
   outline: none;
+}
+
+/* Coming guests read Saturday on the screen, so the heading is gone.
+   Keep the standings where that line sat, for both confirmations. */
+.step[data-step="confirm"].is-coming .votes {
+  margin-top: 18px;
 }
 
 .confirm-sub {

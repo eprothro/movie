@@ -195,30 +195,30 @@ for (const viewport of viewports) {
       const payload = submitted.at(-1);
       assert.equal(payload.p_vote, id);
       assert.equal(payload.p_would_attend, conditional ? id : "both");
+      assert.equal(done.kicker, "");
+      assert.equal(done.line, "See you Saturday");
+      assert.equal(done.headingHidden, true);
+      const line = await oneLine(page, "#screen-line");
+      assert.equal(line.lines, 1, `${id} ${answer} screen line wraps at ${size}`);
+      assert.equal(line.inside, true, `${id} ${answer} screen line overflows at ${size}`);
       if (conditional) {
-        assert.equal(done.kicker, "");
-        assert.equal(done.line, "See you Saturday");
         assert.equal(done.sub, `if ${title} wins`);
-        assert.equal(done.headingHidden, true);
         assert.equal(done.heading, `See you Saturday if ${title} wins.`);
-        const line = await oneLine(page, "#screen-line");
         const sub = await oneLine(page, "#screen-sub");
-        assert.equal(line.lines, 1, `${id} screen line wraps at ${size}`);
         assert.equal(sub.lines, 1, `${id} screen subtitle wraps at ${size}`);
-        assert.equal(line.inside, true, `${id} screen line overflows at ${size}`);
         assert.equal(sub.inside, true, `${id} screen subtitle overflows at ${size}`);
       } else {
-        assert.equal(done.kicker, "Your vote");
-        assert.equal(done.line, title);
         assert.equal(done.sub, "");
-        assert.equal(done.headingHidden, false);
         assert.equal(done.heading, "See you Saturday.");
+        const subLines = await page.locator("#screen-sub").evaluate((el) => el.getClientRects().length);
+        assert.equal(subLines, 0, `${id} still-in subline`);
       }
       await confirmChrome(page, `${id} ${answer}`);
-      const shoot = shots && (conditional || (id === "princess_bride" && answer === "yes"));
-      if (shoot) {
-        const name = conditional ? `conditional-${id}` : "still-in";
-        await page.screenshot({ path: `${shots}/${name}-${size}.png` });
+      if (shots && !conditional) {
+        await page.screenshot({ path: `${shots}/still-in-${id}-${size}.png` });
+      }
+      if (shots && conditional && id === "princess_bride") {
+        await page.screenshot({ path: `${shots}/conditional-${id}-${size}.png` });
       }
       console.log("ok", size, id, answer, button, JSON.stringify(ask.sub), "->", payload.p_would_attend);
       await context.close();
@@ -242,8 +242,112 @@ for (const viewport of viewports) {
     assert.equal(done.line, "We'll see you next time!");
     assert.equal(done.heading, "We'll see you next time!");
     assert.equal(done.headingHidden, true);
-    await confirmChrome(page, "cant");
-    console.log("ok", size, "cant");
+  await confirmChrome(page, "cant");
+  if (shots) await page.screenshot({ path: `${shots}/cant-${size}.png` });
+  console.log("ok", size, "cant");
+  await context.close();
+  }
+
+  {
+    const id = "princess_bride";
+    const title = "The Princess Bride";
+    const { context, page } = await newPage(viewport);
+    await page.evaluate(() => {
+      window.__seen = [];
+      const card = document.getElementById("screen-card");
+      const grab = () => {
+        const opacity = Number(getComputedStyle(card).opacity);
+        const swapping = card.classList.contains("is-swapping");
+        if (swapping || opacity < 0.9) return;
+        const snap = [
+          document.body.dataset.step,
+          document.getElementById("screen-kicker").textContent,
+          document.getElementById("screen-line").textContent,
+          document.getElementById("screen-sub").textContent,
+          document.getElementById("confirm-title").classList.contains("sr-only") ? "hidden" : "shown",
+        ].join("|");
+        const log = window.__seen;
+        if (log.at(-1) !== snap) log.push(snap);
+      };
+      new MutationObserver(grab).observe(card, {
+        subtree: true,
+        attributes: true,
+        characterData: true,
+        childList: true,
+      });
+      new MutationObserver(grab).observe(document.getElementById("confirm-title"), { attributes: true, childList: true, characterData: true });
+    });
+    const lineTop = () =>
+      page.evaluate(() => {
+        const line = document.getElementById("screen-line").getBoundingClientRect();
+        const face = document.querySelector(".face").getBoundingClientRect();
+        return Math.round(line.top - face.top);
+      });
+
+    await page.locator(`.poster[data-movie="${id}"]`).tap();
+    await page.locator('[data-also="yes"]').tap();
+    await page.fill("#name", "Westley");
+    await page.locator("#name-submit").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "confirm");
+    const still = await screen(page);
+    assert.equal(still.line, "See you Saturday");
+    assert.equal(still.sub, "");
+    assert.equal(still.kicker, "");
+    assert.equal(still.headingHidden, true);
+    const stillTop = await lineTop();
+
+    await page.locator("#change").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "pick");
+    await page.locator(`.poster[data-movie="${id}"]`).tap();
+    await page.waitForFunction(() => document.body.dataset.step === "other");
+    await page.locator('[data-also="no"]').tap();
+    await page.waitForFunction(() => document.body.dataset.step === "name");
+    const probably = await screen(page);
+    assert.equal(probably.line, "Who's coming?");
+    assert.equal(probably.sub, `(assuming ${title} wins)`);
+    await page.locator(".step.is-active [data-back]").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "other");
+    await page.locator('[data-also="yes"]').tap();
+    await page.waitForFunction(() => document.body.dataset.step === "name");
+    const back = await screen(page);
+    assert.equal(back.line, "Who's coming?");
+    assert.equal(back.sub, "");
+    await page.locator("#name-submit").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "confirm");
+    const again = await screen(page);
+    assert.equal(again.line, "See you Saturday");
+    assert.equal(again.sub, "");
+    assert.equal(again.kicker, "");
+    assert.equal(again.headingHidden, true);
+    assert.equal(await lineTop(), stillTop, `${size} still-in line moved`);
+
+    await page.locator("#change").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "pick");
+    await page.locator(`.poster[data-movie="${id}"]`).tap();
+    await page.waitForFunction(() => document.body.dataset.step === "other");
+    await page.locator('[data-also="no"]').tap();
+    await page.waitForFunction(() => document.body.dataset.step === "name");
+    await page.locator("#name-submit").tap();
+    await page.waitForFunction(() => document.body.dataset.step === "confirm");
+    const conditional = await screen(page);
+    assert.equal(conditional.line, "See you Saturday");
+    assert.equal(conditional.sub, `if ${title} wins`);
+    assert.equal(conditional.kicker, "");
+    assert.equal(conditional.headingHidden, true);
+    const condTop = await lineTop();
+    assert.ok(Math.abs(condTop - stillTop) <= 1, `${size} headline shifted ${stillTop} vs ${condTop}`);
+
+    const seen = await page.evaluate(() => window.__seen);
+    const flashed = seen.filter((snap) => {
+      const [step, kicker, line, sub, heading] = snap.split("|");
+      if (kicker === "Your vote") return true;
+      if (line === title) return true;
+      if (heading === "shown" && step === "confirm") return true;
+      if (step === "confirm" && line === "See you Saturday" && sub.startsWith("if ") && !sub.includes(title)) return true;
+      return false;
+    });
+    assert.deepEqual(flashed, [], `${size} stale screen text`);
+    console.log("ok", size, "edit switch");
     await context.close();
   }
 }
