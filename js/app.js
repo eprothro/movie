@@ -1,5 +1,5 @@
 import { EVENT, TOKEN_KEY, movieTitle, shortTitle } from "./config.js";
-import { eventShowtime, formatClock } from "./sunset.js";
+import { eventShowtime, formatClock, isEventDayAfternoon } from "./sunset.js";
 import { createScene } from "./scene.js";
 
 const $ = (id) => document.getElementById(id);
@@ -120,7 +120,28 @@ function writeToken(token) {
 
 /* Showtime + countdown */
 
+function clockNow() {
+  const raw = new URLSearchParams(location.search).get("now");
+  if (!raw) return new Date();
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function applyIntro() {
+  if (!isEventDayAfternoon(clockNow(), EVENT)) return;
+  const date = document.getElementById("date-label");
+  if (date) date.textContent = "Tonight";
+  const rm = document.getElementById("rm-date");
+  if (rm) rm.textContent = "Tonight";
+  const where = document.querySelector(".hero .where");
+  if (!where) return;
+  where.classList.add("is-tonight");
+  const label = where.querySelector("span");
+  if (label) label.textContent = "Directions";
+}
+
 function initShowtime() {
+  applyIntro();
   const times = eventShowtime(EVENT);
   if (!times) {
     els.showtime.textContent = "after sunset";

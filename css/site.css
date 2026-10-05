@@ -1009,6 +1009,31 @@ h1 em {
   color: var(--gold);
 }
 
+.where.is-tonight {
+  margin-top: 12px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  font-weight: 650;
+  font-size: 17px;
+  color: #1d1206;
+  background: linear-gradient(180deg, #ffe9bd 0%, #ffcb76 100%);
+  box-shadow:
+    0 12px 32px -10px rgba(255, 176, 80, 0.75),
+    0 0 0 1px rgba(255, 220, 160, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.where.is-tonight svg {
+  width: 18px;
+  height: 18px;
+  color: #1d1206;
+}
+
+.where.is-tonight:active {
+  transform: scale(0.97);
+}
+
 /* Scroll cue. Arrives after the screen inflates, leaves on the first scroll. */
 .cue {
   display: grid;

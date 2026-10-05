@@ -403,5 +403,108 @@ assertMaps(await directions(desktopUA), maps.google, "desktop");
 }
 console.log("ok directions", maps.apple, maps.geo, maps.google);
 
+const introCases = [
+  ["2026-10-09T15:00-05:00", false, "friday"],
+  ["2026-10-10T11:59-05:00", false, "saturday-1159"],
+  ["2026-10-10T12:00-05:00", true, "saturday-noon"],
+  ["2026-10-10T13:00-05:00", true, "saturday-afternoon"],
+  ["2026-10-10T21:00-05:00", true, "saturday-9pm"],
+  ["2026-10-11T10:00-05:00", false, "sunday"],
+  ["2026-10-10T16:59:00Z", false, "utc-before-noon-chicago"],
+  ["2026-10-10T17:00:00Z", true, "utc-noon-chicago"],
+];
+
+async function introAt(now, viewport) {
+  const context = await browser.newContext({
+    viewport,
+    deviceScaleFactor: 2,
+    isMobile: true,
+    hasTouch: true,
+  });
+  const page = await context.newPage();
+  page.on("pageerror", (error) => {
+    throw error;
+  });
+  const url = new URL(base);
+  url.searchParams.set("now", now);
+  await page.goto(url.href, { waitUntil: "load" });
+  await page.waitForFunction(() => /\d/.test(document.getElementById("showtime").textContent));
+  const info = await page.evaluate(() => {
+    const where = document.querySelector(".hero .where");
+    const box = where.getBoundingClientRect();
+    const cue = document.getElementById("cue").getBoundingClientRect();
+    return {
+      date: document.getElementById("date-label").textContent,
+      when: document.querySelector(".when").innerText.replace(/\s+/g, " ").trim(),
+      place: where.querySelector("span").textContent.trim(),
+      tonight: where.classList.contains("is-tonight"),
+      href: where.getAttribute("href"),
+      height: box.height,
+      width: box.width,
+      rm: document.getElementById("rm-date").textContent,
+      countdown: document.getElementById("countdown").textContent,
+      cueTop: cue.top,
+      cueBottom: cue.bottom,
+      vh: window.innerHeight,
+      scroll: window.scrollY,
+    };
+  });
+  return { context, page, info };
+}
+
+for (const [now, tonight, label] of introCases) {
+  const { context, info } = await introAt(now, { width: 390, height: 844 });
+  assert.equal(info.tonight, tonight, label);
+  assert.equal(info.date, tonight ? "Tonight" : "Saturday, Oct 10", label);
+  assert.equal(info.rm, tonight ? "Tonight" : "Saturday, Oct 10", label);
+  assert.equal(info.place, tonight ? "Directions" : "Bullard, TX", label);
+  assert.match(info.when, /Showtime/, label);
+  assert.match(info.when, /\d/, label);
+  assert.equal(info.href, maps.google, label);
+  assert.match(info.countdown, /\d+d/, `${label} countdown still real`);
+  assert.equal(info.scroll, 0, label);
+  if (tonight) {
+    assert.ok(info.height >= 44, `${label} height ${info.height}`);
+    assert.ok(info.width >= 44, `${label} width ${info.width}`);
+  }
+  assert.ok(info.cueBottom <= info.vh + 1, `${label} scroll cue clipped`);
+  console.log("ok intro", label, info.date, info.place, info.when);
+  await context.close();
+}
+
+{
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    userAgent: iphoneUA,
+  });
+  const page = await context.newPage();
+  const url = new URL(base);
+  url.searchParams.set("now", "2026-10-10T13:00-05:00");
+  await page.goto(url.href, { waitUntil: "load" });
+  const href = await page.locator(".hero .where").getAttribute("href");
+  assert.equal(href, maps.apple, "saturday iphone directions");
+  assert.equal(await page.locator(".hero .where span").textContent(), "Directions");
+  await context.close();
+  console.log("ok intro iphone directions");
+}
+
+if (shots) {
+  const shotsWanted = [
+    ["2026-10-10T13:00-05:00", { width: 375, height: 667 }, "intro-saturday-375x667"],
+    ["2026-10-10T13:00-05:00", { width: 390, height: 844 }, "intro-saturday-390x844"],
+    ["2026-10-09T15:00-05:00", { width: 390, height: 844 }, "intro-normal-390x844"],
+  ];
+  for (const [now, viewport, name] of shotsWanted) {
+    const { context, page, info } = await introAt(now, viewport);
+    assert.equal(info.place, name.startsWith("intro-saturday") ? "Directions" : "Bullard, TX", name);
+    await page.waitForFunction(() => getComputedStyle(document.getElementById("cue")).opacity === "1");
+    await page.screenshot({ path: `${shots}/${name}.png` });
+    console.log("shot", name);
+    await context.close();
+  }
+}
+
 await browser.close();
 console.log("all paths passed");
