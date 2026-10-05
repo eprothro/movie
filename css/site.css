@@ -1372,25 +1372,6 @@ h1 em {
   color: var(--gold);
 }
 
-.route-alt {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  padding: 0 10px;
-  color: var(--faint);
-  text-decoration: underline;
-  text-decoration-color: rgba(255, 255, 255, 0.2);
-  text-underline-offset: 4px;
-}
-
-.route-alt::before {
-  content: "·";
-  margin-right: 14px;
-  color: var(--faint);
-  text-decoration: none;
-  display: inline-block;
-}
-
 /* Posters */
 
 .posters {

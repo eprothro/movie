@@ -68,8 +68,10 @@ const ERRORS = {
   network: "Couldn't save. Try again.",
 };
 
-const MAP_APPLE = `https://maps.apple.com/?daddr=${encodeURIComponent(EVENT.address)}&dirflg=d`;
-const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(EVENT.address)}`;
+const MAP_POINT = `${EVENT.latitude},${EVENT.longitude}`;
+const MAP_APPLE = `https://maps.apple.com/?daddr=${MAP_POINT}&dirflg=d`;
+const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${MAP_POINT}`;
+const MAP_GEO = `geo:0,0?q=${MAP_POINT}(Prothro%20Movie%20Night)`;
 const CHAIR_COLORS = ["#ffcf7d", "#ff9f8a", "#8fc4ff", "#9ee0a0", "#d4a6ff", "#ffe08a"];
 let advanceTimer = 0;
 let swapTimer = 0;
@@ -169,20 +171,18 @@ function tickCountdown() {
 
 /* Directions */
 
-function prefersAppleMaps() {
+function mapsHref() {
   const ua = navigator.userAgent || "";
   const iPadOs = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return /iPad|iPhone|iPod/.test(ua) || iPadOs;
+  if (/iPad|iPhone|iPod/.test(ua) || iPadOs) return MAP_APPLE;
+  if (/Android/i.test(ua)) return MAP_GEO;
+  return MAP_GOOGLE;
 }
 
 function wireDirections() {
-  const apple = prefersAppleMaps();
+  const href = mapsHref();
   document.querySelectorAll("[data-dir]").forEach((a) => {
-    a.href = apple ? MAP_APPLE : MAP_GOOGLE;
-  });
-  document.querySelectorAll("[data-dir-alt]").forEach((a) => {
-    a.href = apple ? MAP_GOOGLE : MAP_APPLE;
-    a.textContent = apple ? "Google Maps" : "Apple Maps";
+    a.setAttribute("href", href);
   });
 }
 

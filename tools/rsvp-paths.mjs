@@ -18,13 +18,14 @@ const movies = [
 const browser = await chromium.launch();
 const submitted = [];
 
-async function newPage(viewport) {
+async function newPage(viewport, userAgent) {
   const context = await browser.newContext({
     viewport,
     deviceScaleFactor: 2,
     isMobile: true,
     hasTouch: true,
     reducedMotion: "reduce",
+    ...(userAgent ? { userAgent } : {}),
   });
   await context.route("**/rest/v1/rpc/**", async (route) => {
     const fn = route.request().url().split("/rpc/")[1].split("?")[0];
@@ -130,6 +131,7 @@ async function confirmChrome(page, label) {
   assert.match(boxes.votes.label, /Top Gun: Maverick 1/, `${label} top gun count`);
   assert.ok(boxes.votes.top >= -1 && boxes.votes.bottom <= boxes.vh + 1, `${label} standings in view`);
   assert.ok(boxes.change.top < boxes.vh - 8, `${label} Change RSVP in view`);
+  assert.equal(await page.locator(".route-alt, [data-dir-alt]").count(), 0, `${label} secondary maps link`);
   const badge = await page.evaluate(() => {
     const labels = [...document.querySelectorAll(".you")].map((el) => el.textContent);
     const mine = document.querySelector(".bucket.is-mine .you");
@@ -351,6 +353,55 @@ for (const viewport of viewports) {
     await context.close();
   }
 }
+
+const maps = {
+  google: "https://www.google.com/maps/dir/?api=1&destination=32.15498,-95.36768",
+  apple: "https://maps.apple.com/?daddr=32.15498,-95.36768&dirflg=d",
+  geo: "geo:0,0?q=32.15498,-95.36768(Prothro%20Movie%20Night)",
+};
+
+async function directions(userAgent) {
+  const { context, page } = await newPage({ width: 390, height: 844 }, userAgent);
+  const info = await page.evaluate(() => ({
+    hrefs: [...document.querySelectorAll("[data-dir]")].map((a) => a.getAttribute("href")),
+    alts: document.querySelectorAll(".route-alt, [data-dir-alt]").length,
+    texts: [...document.querySelectorAll("a")].map((a) => a.textContent.replace(/\s+/g, " ").trim()),
+  }));
+  await context.close();
+  return info;
+}
+
+function assertMaps(info, expected, label) {
+  assert.equal(info.alts, 0, `${label} secondary link`);
+  assert.ok(info.hrefs.length >= 3, `${label} link count`);
+  for (const href of info.hrefs) assert.equal(href, expected, label);
+  assert.equal(info.texts.filter((text) => text === "Apple Maps" || text === "Google Maps").length, 0, label);
+  assert.ok(info.texts.some((text) => text.includes("Directions")), label);
+  assert.ok(info.texts.some((text) => text.includes("Bullard, TX")), label);
+}
+
+const iphoneUA =
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+const androidUA =
+  "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36";
+const desktopUA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
+
+assertMaps(await directions(iphoneUA), maps.apple, "iphone");
+assertMaps(await directions(androidUA), maps.geo, "android");
+assertMaps(await directions(desktopUA), maps.google, "desktop");
+
+{
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  const page = await context.newPage();
+  await page.goto(base, { waitUntil: "load" });
+  const hrefs = await page.locator("[data-dir]").evaluateAll((links) => links.map((a) => a.getAttribute("href")));
+  assert.ok(hrefs.length >= 3);
+  for (const href of hrefs) assert.equal(href, maps.google, "html default");
+  assert.equal(await page.locator(".route-alt, [data-dir-alt]").count(), 0);
+  await context.close();
+}
+console.log("ok directions", maps.apple, maps.geo, maps.google);
 
 await browser.close();
 console.log("all paths passed");
