@@ -39,6 +39,11 @@
   --hy: calc(var(--H) * var(--hz));
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
+  /* The part of the screen the browser's own bars never cover. On iOS 26 the
+     layout viewport and lvh run under the floating toolbar; svh stops above it. */
+  --vis: 100vh;
+  /* Clearance under the last control, above the toolbar or home indicator. */
+  --dock: calc(var(--safe-b) + 12px);
   color-scheme: dark;
 }
 
@@ -46,6 +51,7 @@
   :root {
     --H: 100lvh;
     --s: min(1vw, 0.5lvh);
+    --vis: 100svh;
   }
 }
 
@@ -1171,9 +1177,9 @@ h1 em {
      lvh it ran past it while the toolbar showed. */
   min-height: 100svh;
   min-height: 100dvh;
-  /* --kb is the keyboard overlap. It gives the short steps room to scroll
-     the field up into the visible band; the fixed scene does not move. */
-  padding-bottom: calc(var(--safe-b) + 16px + var(--kb, 0px));
+  /* --room is set only while the keyboard is up, and only when the browser
+     gave the page no extra scroll to lift the form above it. */
+  padding-bottom: calc(var(--safe-b) + 16px + var(--room, 0px));
   scroll-snap-align: start;
   /* A flick from the landing stops here even when a tall step (the name
      form, the confirmation) makes the stage longer than the screen. */
@@ -1182,14 +1188,48 @@ h1 em {
 
 .stage-gap {
   /* The extra 14px clears the screen's feet: about 20px to the first button. */
-  height: calc(var(--hy) + 6 * var(--s) + 14px);
+  --gap: calc(var(--hy) + 6 * var(--s) + 14px);
+  height: var(--gap);
+}
+
+/* The screen sits on the large viewport and the form under it, so on a short
+   phone with Safari's toolbar up the button lands under the toolbar. Raise
+   the form just enough to end above it (js/app.js sets --step-h to the
+   step's height). It may cover the screen's legs and lower frame, never the
+   lit face. Layout only, so no scroll ever has to correct it. */
+.stage.is-fit .stage-gap {
+  height: max(
+    calc(var(--hy) - 12 * var(--s)),
+    min(var(--gap), calc(var(--vis) - var(--step-h, 0px) - var(--dock)))
+  );
 }
 
 .panel {
   position: relative;
+  z-index: 0;
   max-width: 440px;
   margin: 0 auto;
   padding: 0 20px;
+}
+
+/* With the keyboard up the form is lifted over the fixed screen. A night
+   backdrop keeps the labels off the lit face. Paint only. */
+.panel::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -32px;
+  bottom: 0;
+  left: calc(50% - 50vw);
+  right: calc(50% - 50vw);
+  background: linear-gradient(180deg, rgba(5, 8, 20, 0) 0, rgba(5, 8, 20, 0.94) 32px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+html.is-lifted .panel::before {
+  opacity: 1;
 }
 
 .steps {
@@ -1461,7 +1501,7 @@ h1 em {
   position: absolute;
   z-index: 2;
   left: 50%;
-  top: calc((100svh - var(--hy) - 6 * var(--s) - var(--safe-b) - 128px) / 2);
+  top: calc((var(--vis) - var(--hy) - 6 * var(--s) - var(--safe-b) - 128px) / 2);
   display: grid;
   place-items: center;
   width: 36px;
@@ -1520,7 +1560,7 @@ h1 em {
   /* Full poster ratio, but no taller than the room under the screen, so the
      titles and "Can't make it" stay on screen above the home indicator. */
   aspect-ratio: 2 / 3;
-  width: min(100%, calc((100svh - var(--hy) - 6 * var(--s) - var(--safe-b) - 128px) * 2 / 3));
+  width: min(100%, calc((var(--vis) - var(--hy) - 6 * var(--s) - var(--safe-b) - 128px) * 2 / 3));
   justify-self: center;
   overflow: hidden;
   border-radius: 18px;
@@ -1647,18 +1687,26 @@ input[type="text"].is-shaking {
   }
 }
 
+/* Name and party share a row, so the step is short enough to sit between
+   the screen and Safari's toolbar on a 667pt phone. */
+.who {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
 .party {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 6px;
+  display: grid;
+  gap: 8px;
 }
 
 .stepper {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
+  gap: 2px;
+  height: 58px;
+  padding: 5px;
   border-radius: 999px;
   background: rgba(14, 18, 34, 0.7);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
@@ -1690,7 +1738,7 @@ input[type="text"].is-shaking {
 }
 
 .stepper output {
-  min-width: 44px;
+  min-width: 36px;
   text-align: center;
   font-family: var(--display);
   font-variation-settings: "opsz" 72;

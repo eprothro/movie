@@ -8,6 +8,7 @@ const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const els = {
   steps: [...document.querySelectorAll(".step")],
   cue: $("cue"),
+  stage: $("rsvp"),
   showtime: $("showtime"),
   countdowns: [...document.querySelectorAll("[data-countdown]")],
   countdownSr: $("countdown-sr"),
@@ -73,6 +74,7 @@ const MAP_APPLE = `https://maps.apple.com/?daddr=${MAP_POINT}&dirflg=d`;
 const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${MAP_POINT}`;
 const MAP_GEO = `geo:0,0?q=${MAP_POINT}(Prothro%20Movie%20Night)`;
 const CHAIR_COLORS = ["#ffcf7d", "#ff9f8a", "#8fc4ff", "#9ee0a0", "#d4a6ff", "#ffe08a"];
+const FIT_STEPS = new Set(["other", "name", "cant"]);
 let advanceTimer = 0;
 let swapTimer = 0;
 let lastCard = "";
@@ -265,6 +267,9 @@ function bind() {
 
   els.nameSubmit.addEventListener("pointerdown", markTyping);
   els.cantSubmit.addEventListener("pointerdown", markTyping);
+  window.visualViewport?.addEventListener("resize", onViewport);
+  const sizes = new ResizeObserver(fitStage);
+  els.steps.filter((el) => FIT_STEPS.has(el.dataset.step)).forEach((el) => sizes.observe(el));
 
   els.nameForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -314,6 +319,7 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
   }
   if (step === "cant") els.cantSubmit.textContent = state.rsvp ? "Update" : "Send";
 
+  fitStage();
   paintScreen();
 
   if ((prev === "name" || prev === "cant") && step !== prev) settleTyping();
@@ -326,16 +332,40 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
   else active.querySelector("h2")?.focus({ preventScroll: true });
 }
 
-// The keyboard resizes the visual viewport. Chasing it with scroll, snap, or
-// stage padding feeds the viewport another resize, and the page bounces until
-// that loop stops. While a field is focused, snap is off and nothing here
-// scrolls. The browser scrolls natively. Snap comes back once the keyboard
-// has finished closing.
+// The form's resting place is layout only (.stage.is-fit in site.css): the
+// gap above it shrinks until the button ends above Safari's toolbar.
+function fitStage() {
+  const active = els.steps.find((el) => el.dataset.step === state.step);
+  const fit = Boolean(active) && FIT_STEPS.has(state.step);
+  els.stage.classList.toggle("is-fit", fit);
+  if (fit) els.stage.style.setProperty("--step-h", `${active.offsetHeight}px`);
+  else els.stage.style.removeProperty("--step-h");
+}
+
+// The keyboard. iOS keeps the layout viewport and shrinks only the visual
+// one, then scrolls the focused field above the keyboard but leaves the
+// button under it. Once the keyboard has settled, lift the form once so the
+// button clears it too; once the keyboard has gone, put the stage back.
+// Following every viewport event instead fed scroll, snap and the viewport
+// into each other and the page bounced. So snap is off while a field is
+// focused, visualViewport scroll is never read, and a settled keyboard height
+// is handled once, so our own scroll cannot start another pass.
+const KEYBOARD_MIN = 150; // bigger than a toolbar showing or hiding
+const SETTLE_MS = 160;
+const EDGE = 12;
 let typingTimer = 0;
+let settleTimer = 0;
+let openHeight = window.visualViewport?.height || 0;
+let liftedFor = 0;
 
 function typingField() {
   const el = document.activeElement;
   return el === els.name || el === els.cantName ? el : null;
+}
+
+function keyboardHeight() {
+  const vv = window.visualViewport;
+  return vv ? Math.max(0, openHeight - vv.height) : 0;
 }
 
 function markTyping() {
@@ -345,11 +375,56 @@ function markTyping() {
 
 function settleTyping() {
   window.clearTimeout(typingTimer);
-  typingTimer = window.setTimeout(() => {
-    if (typingField()) return;
-    document.documentElement.classList.remove("is-typing");
-    document.documentElement.style.removeProperty("--kb");
-  }, 700);
+  typingTimer = window.setTimeout(afterKeyboard, 700);
+}
+
+function onViewport() {
+  window.clearTimeout(settleTimer);
+  settleTimer = window.setTimeout(settleViewport, SETTLE_MS);
+}
+
+function settleViewport() {
+  const field = typingField();
+  const keyboard = keyboardHeight();
+  if (!field) {
+    if (keyboard > KEYBOARD_MIN) return;
+    openHeight = window.visualViewport.height;
+    afterKeyboard();
+    return;
+  }
+  if (keyboard <= KEYBOARD_MIN || Math.abs(keyboard - liftedFor) < 40) return;
+  liftedFor = keyboard;
+  liftForm(field);
+}
+
+function liftForm(field) {
+  const vv = window.visualViewport;
+  const button = field.form?.querySelector('[type="submit"]');
+  if (!vv || !button) return;
+  const top = vv.offsetTop + EDGE;
+  const bottom = vv.offsetTop + vv.height - EDGE;
+  const label = field.closest(".field") || field;
+  const dy = Math.min(button.getBoundingClientRect().bottom - bottom, label.getBoundingClientRect().top - top);
+  if (dy < 1) return;
+  document.documentElement.classList.add("is-lifted");
+  const target = Math.round(window.scrollY + dy);
+  window.scrollTo(0, target);
+  const short = target - window.scrollY;
+  if (short > 1) {
+    els.stage.style.setProperty("--room", `${Math.ceil(short)}px`);
+    window.scrollTo(0, target);
+  }
+}
+
+function afterKeyboard() {
+  if (typingField() || keyboardHeight() > KEYBOARD_MIN) return;
+  window.clearTimeout(typingTimer);
+  liftedFor = 0;
+  if (els.stage.style.getPropertyValue("--room")) els.stage.style.removeProperty("--room");
+  // Every step that takes a name rests at the stage top.
+  const top = scene.stageTop;
+  if (window.scrollY > top + 1) window.scrollTo(0, top);
+  document.documentElement.classList.remove("is-typing", "is-lifted");
 }
 
 function holdField(input) {
