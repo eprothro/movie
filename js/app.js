@@ -258,19 +258,13 @@ function bind() {
   els.cantName.addEventListener("input", () => clearError(els.cantName, els.cantError));
   for (const input of [els.name, els.cantName]) {
     input.addEventListener("animationend", () => input.classList.remove("is-shaking"));
-    input.addEventListener("focus", () => {
-      document.documentElement.classList.add("is-typing");
-      placeField();
-      window.clearTimeout(placeTimer);
-      placeTimer = window.setTimeout(placeField, 350);
-    });
+    input.addEventListener("pointerdown", markTyping);
+    input.addEventListener("focus", markTyping);
     input.addEventListener("blur", releaseField);
   }
-  const vv = window.visualViewport;
-  if (vv) {
-    vv.addEventListener("resize", onViewport);
-    vv.addEventListener("scroll", onViewport);
-  }
+
+  els.nameSubmit.addEventListener("pointerdown", markTyping);
+  els.cantSubmit.addEventListener("pointerdown", markTyping);
 
   els.nameForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -322,6 +316,8 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
 
   paintScreen();
 
+  if ((prev === "name" || prev === "cant") && step !== prev) settleTyping();
+
   if (scroll && !scene.atStage()) scene.goToStage();
   if (!focus) return;
   const active = els.steps.find((el) => el.dataset.step === step);
@@ -330,90 +326,51 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
   else active.querySelector("h2")?.focus({ preventScroll: true });
 }
 
-// The steps are only a viewport tall and the scene is position:fixed, so a
-// keyboard that overlays the layout has nothing to scroll the field into.
-// While one is open, drop scroll-snap, pad by the overlap, and move the
-// field and its button into the visual viewport.
-let placeTimer = 0;
-let placeLockedUntil = 0;
+// The keyboard resizes the visual viewport. Chasing it with scroll, snap, or
+// stage padding feeds the viewport another resize, and the page bounces until
+// that loop stops. While a field is focused, snap is off and nothing here
+// scrolls. The browser scrolls natively. Snap comes back once the keyboard
+// has finished closing.
+let typingTimer = 0;
 
 function typingField() {
   const el = document.activeElement;
   return el === els.name || el === els.cantName ? el : null;
 }
 
-function keyboardOverlap() {
-  const vv = window.visualViewport;
-  if (!vv) return 0;
-  return Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+function markTyping() {
+  window.clearTimeout(typingTimer);
+  document.documentElement.classList.add("is-typing");
 }
 
-function placeField() {
-  const input = typingField();
-  if (!input || performance.now() < placeLockedUntil) return;
-  document.documentElement.classList.add("is-typing");
-  document.documentElement.style.setProperty("--kb", `${keyboardOverlap()}px`);
-  const vv = window.visualViewport;
-  const viewTop = vv ? vv.offsetTop : 0;
-  const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
-  const submit = input.form.querySelector('[type="submit"]');
-  const pad = 12;
-  const field = input.getBoundingClientRect();
-  const button = submit.getBoundingClientRect();
-  const showButton = Math.max(0, button.bottom - (viewBottom - pad));
-  // Scrolling the button clear of the keyboard would hide the field. Do nothing:
-  // chasing both is what bounced the page for the whole keyboard animation.
-  if (showButton && field.top - showButton < viewTop + pad) return;
-  const showField = Math.min(0, field.top - (viewTop + pad));
-  const delta = showButton || showField;
-  if (Math.abs(delta) < 2) return;
-  placeLockedUntil = performance.now() + 500;
-  window.scrollBy(0, delta);
+function settleTyping() {
+  window.clearTimeout(typingTimer);
+  typingTimer = window.setTimeout(() => {
+    if (typingField()) return;
+    document.documentElement.classList.remove("is-typing");
+    document.documentElement.style.removeProperty("--kb");
+  }, 700);
 }
 
 function holdField(input) {
-  document.documentElement.classList.add("is-typing");
+  markTyping();
   input.focus({ preventScroll: true });
-  placeField();
-  window.clearTimeout(placeTimer);
-  // iOS animates the keyboard for about 300ms and fires visualViewport along the way.
-  placeTimer = window.setTimeout(placeField, 350);
 }
 
 function releaseField() {
-  window.setTimeout(() => {
-    if (typingField()) return;
-    window.clearTimeout(placeTimer);
-    document.documentElement.classList.remove("is-typing");
-    document.documentElement.style.removeProperty("--kb");
-  }, 80);
+  settleTyping();
 }
 
-function onViewport() {
-  if (performance.now() < placeLockedUntil || !typingField()) return;
-  window.clearTimeout(placeTimer);
-  placeTimer = window.setTimeout(placeField, 80);
-}
-
-// Empty name: focus the field, but do not let the keyboard or scroll-snap move the stage.
 function rejectEmpty(input, errorEl) {
   errorEl.hidden = true;
   errorEl.textContent = "";
-  const y = window.scrollY;
-  placeLockedUntil = performance.now() + 1200;
-  document.documentElement.classList.add("is-typing");
+  markTyping();
   input.setAttribute("aria-invalid", "true");
   input.classList.add("is-invalid");
   input.classList.remove("is-shaking");
   void input.offsetWidth;
   input.classList.add("is-shaking");
   input.focus({ preventScroll: true });
-  const until = performance.now() + 1200;
-  const pin = () => {
-    if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
-    if (performance.now() < until) requestAnimationFrame(pin);
-  };
-  requestAnimationFrame(pin);
 }
 
 function syncPick() {

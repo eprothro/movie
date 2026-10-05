@@ -673,10 +673,24 @@ function keyboardShim() {
   const emit = (type) => listeners[type]?.forEach((fn) => fn(new Event(type)));
   let keyboard = 0;
   let base = 0;
+  let timer = 0;
   const apply = () => {
     fake.height = Math.round(window.innerHeight - keyboard);
     fake.offsetTop = keyboard ? Math.max(0, Math.min(keyboard, window.scrollY - base)) : 0;
     fake.pageTop = window.scrollY;
+  };
+  const animateTo = (target) => {
+    window.clearInterval(timer);
+    const from = keyboard;
+    let frame = 0;
+    timer = window.setInterval(() => {
+      frame += 1;
+      const t = Math.min(1, frame / 8);
+      keyboard = Math.round(from + (target - from) * t);
+      apply();
+      emit("resize");
+      if (frame >= 8) window.clearInterval(timer);
+    }, 40);
   };
   window.addEventListener(
     "scroll",
@@ -687,20 +701,21 @@ function keyboardShim() {
     },
     { passive: true },
   );
+  const isName = (event) => event.target?.id === "name" || event.target?.id === "cant-name";
   document.addEventListener(
     "focusin",
     (event) => {
-      const id = event.target?.id;
-      if ((id !== "name" && id !== "cant-name") || keyboard) return;
+      if (!isName(event)) return;
       base = window.scrollY;
-      let frame = 0;
-      const timer = setInterval(() => {
-        frame += 1;
-        keyboard = Math.round(336 * Math.min(1, frame / 8));
-        apply();
-        emit("resize");
-        if (frame >= 8) clearInterval(timer);
-      }, 40);
+      animateTo(336);
+    },
+    true,
+  );
+  document.addEventListener(
+    "focusout",
+    (event) => {
+      if (!isName(event)) return;
+      animateTo(0);
     },
     true,
   );
@@ -776,41 +791,108 @@ async function emptyNameSuite(browserType, engine) {
         await page.waitForFunction(() => document.body.dataset.step === "name");
         await page.fill("#name", "");
       }
-      await page.waitForTimeout(500);
+      await page.locator("#name").evaluate((input) => input.blur());
+      await page.waitForTimeout(800);
       const size = `${viewport.width}x${viewport.height}`;
       const tag = `${engine} ${size} ${label}`;
       assert.equal((await page.locator("#name-submit").innerText()).trim(), label, tag);
       const sentBefore = submittedHere.length;
-      await page.evaluate(() => {
-        window.__ys = [];
-        const t0 = performance.now();
-        const tick = () => {
-          window.__ys.push(window.scrollY);
-          if (performance.now() - t0 < 3000) requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
+      const watch = async (act) => {
+        await page.evaluate(() => {
+          window.__ys = [];
+          const t0 = performance.now();
+          const tick = () => {
+            window.__ys.push(window.scrollY);
+            if (performance.now() - t0 < 3000) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        });
+        await act();
+        await page.waitForTimeout(3100);
+        return page.evaluate(() => {
+          const ys = window.__ys;
+          let reversals = 0;
+          const pts = [];
+          for (const y of ys) {
+            if (!pts.length || Math.abs(y - pts[pts.length - 1]) > 2) pts.push(y);
+          }
+          for (let i = 2; i < pts.length; i++) {
+            const a = pts[i - 1] - pts[i - 2];
+            const b = pts[i] - pts[i - 1];
+            if (a * b < 0) reversals += 1;
+          }
+          const tail = ys.slice(Math.floor(ys.length / 2));
+          return {
+            min: Math.min(...ys),
+            max: Math.max(...ys),
+            n: ys.length,
+            first: ys[0],
+            last: ys.at(-1),
+            reversals,
+            tail: Math.max(...tail) - Math.min(...tail),
+            uniq: [...new Set(ys)].slice(0, 12),
+          };
+        });
+      };
+      const detail = (range) =>
+        `${range.min}..${range.max} rev ${range.reversals} tail ${range.tail} uniq ${range.uniq?.join(",")}`;
+      const still = (range, phase) => {
+        assert.ok(range.n > 30, `${tag} ${phase}`);
+        assert.equal(range.reversals, 0, `${tag} ${phase} oscillated ${detail(range)}`);
+        assert.ok(range.max - range.min <= 4, `${tag} ${phase} scroll ${detail(range)}`);
+      };
+      const opened = await watch(() => page.locator("#name").tap());
+      still(opened, "focus");
+      if (shots && engine === "webkit" && label === "Count me in") {
+        const box = await page.evaluate(() => ({
+          w: window.innerWidth,
+          h: Math.round(window.visualViewport.height),
+          y: Math.round(window.visualViewport.offsetTop),
+        }));
+        await page.screenshot({
+          path: `${shots}/keyboard-open-${size}.png`,
+          clip: { x: 0, y: box.y, width: box.w, height: Math.max(1, box.h) },
+        });
+        console.log("shot", `keyboard-open-${size}`, box.h);
+      }
+      const typed = await watch(() => page.locator("#name").pressSequentially("A"));
+      still(typed, "typing");
+      await page.evaluate(() => window.scrollTo(0, Math.max(0, window.scrollY - 200)));
+      const lifted = await page.evaluate(() => window.scrollY);
+      const bottomed = await watch(() =>
+        page.evaluate(() => {
+          const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+          window.scrollTo(0, max);
+        }),
+      );
+      const atBottom = await page.evaluate(() => {
+        const max = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        return { y: window.scrollY, max, typing: document.documentElement.classList.contains("is-typing") };
       });
-      await page.locator("#name-submit").tap();
-      await page.waitForTimeout(3100);
-      const result = await page.evaluate(() => {
-        const ys = window.__ys;
+      assert.ok(bottomed.n > 30, `${tag} scroll-bottom`);
+      assert.equal(bottomed.reversals, 0, `${tag} scroll-bottom oscillated ${detail(bottomed)}`);
+      assert.ok(bottomed.tail <= 4, `${tag} scroll-bottom tail ${detail(bottomed)}`);
+      assert.ok(atBottom.y >= lifted + 80, `${tag} did not scroll ${lifted} -> ${atBottom.y}`);
+      assert.ok(Math.abs(atBottom.y - atBottom.max) <= 4, `${tag} bottom ${atBottom.y} max ${atBottom.max}`);
+      assert.equal(atBottom.typing, true, `${tag} snap while keyboard open`);
+      const closed = await watch(() => page.locator("#name").evaluate((input) => input.blur()));
+      still(closed, "blur");
+      await page.fill("#name", "");
+      const submitted = await watch(() => page.locator("#name-submit").tap());
+      still(submitted, "empty-submit");
+      const field = await page.evaluate(() => {
         const input = document.getElementById("name");
         return {
-          min: Math.min(...ys),
-          max: Math.max(...ys),
-          n: ys.length,
           invalid: input.classList.contains("is-invalid"),
           errorHidden: document.getElementById("name-error").hidden,
           errorText: document.getElementById("name-error").textContent,
           step: document.body.dataset.step,
         };
       });
-      assert.ok(result.n > 30, tag);
-      assert.ok(result.max - result.min <= 4, `${tag} scroll ${result.min}..${result.max}`);
-      assert.equal(result.invalid, true, tag);
-      assert.equal(result.errorHidden, true, tag);
-      assert.equal(result.errorText, "", tag);
-      assert.equal(result.step, "name", tag);
+      assert.equal(field.invalid, true, tag);
+      assert.equal(field.errorHidden, true, tag);
+      assert.equal(field.errorText, "", tag);
+      assert.equal(field.step, "name", tag);
       assert.equal(submittedHere.length, sentBefore, `${tag} sent`);
       if (shots && engine === "webkit" && label === "Count me in") {
         await page.screenshot({ path: `${shots}/empty-name-${size}.png` });
@@ -818,11 +900,23 @@ async function emptyNameSuite(browserType, engine) {
       }
       await page.fill("#name", "Buttercup");
       assert.equal(await page.evaluate(() => document.getElementById("name").classList.contains("is-invalid")), false, tag);
-      await page.locator("#name-submit").tap();
+      const saved = await watch(() => page.locator("#name-submit").tap());
+      assert.ok(saved.n > 30, `${tag} submit`);
+      assert.equal(saved.reversals, 0, `${tag} submit oscillated ${detail(saved)}`);
+      assert.ok(saved.tail <= 4, `${tag} submit tail ${detail(saved)}`);
       await page.waitForFunction(() => document.body.dataset.step === "confirm");
       assert.equal(submittedHere.length, sentBefore + 1, `${tag} saved`);
       assert.equal(submittedHere.at(-1).p_name, "Buttercup", tag);
-      console.log("ok empty-name", tag, `scroll ${result.min}..${result.max}`);
+      console.log(
+        "ok keyboard",
+        tag,
+        `focus ${opened.min}..${opened.max}`,
+        `type ${typed.min}..${typed.max}`,
+        `scroll ${bottomed.first}..${bottomed.last} tail ${bottomed.tail}`,
+        `blur ${closed.min}..${closed.max}`,
+        `empty ${submitted.min}..${submitted.max}`,
+        `save ${saved.min}..${saved.max} tail ${saved.tail}`,
+      );
       await context.close();
     }
   }
