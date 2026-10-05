@@ -354,6 +354,77 @@ for (const viewport of viewports) {
   }
 }
 
+for (const viewport of viewports) {
+  const size = `${viewport.width}x${viewport.height}`;
+  const { context, page } = await newPage(viewport);
+  const label = () => page.locator("#name-submit").innerText().then((text) => text.trim());
+  const box = async () => {
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    return page.locator("#name-submit").evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
+    });
+  };
+  await page.locator('.poster[data-movie="princess_bride"]').tap();
+  await page.locator('[data-also="yes"]').tap();
+  await page.waitForFunction(() => document.body.dataset.step === "name");
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".step.is-active")).transform === "none");
+  assert.equal(await label(), "Count me in", `${size} party 1`);
+  const atOne = await box();
+  await page.locator("#party-inc").tap();
+  assert.equal(await page.locator("#party-value").innerText(), "2");
+  assert.equal(await label(), "Count us in", `${size} party 2`);
+  const atTwo = await box();
+  assert.deepEqual(atTwo, atOne, `${size} button shifted ${JSON.stringify(atOne)} -> ${JSON.stringify(atTwo)}`);
+  await page.locator("#party-dec").tap();
+  assert.equal(await label(), "Count me in", `${size} back to 1`);
+  assert.deepEqual(await box(), atOne, `${size} button shifted on the way back`);
+  await page.locator("#party-inc").tap();
+  await page.locator(".step.is-active [data-back]").tap();
+  await page.waitForFunction(() => document.body.dataset.step === "other");
+  await page.locator('[data-also="yes"]').tap();
+  await page.waitForFunction(() => document.body.dataset.step === "name");
+  assert.equal(await label(), "Count us in", `${size} already 2`);
+  await page.locator(".step.is-active [data-back]").tap();
+  await page.waitForFunction(() => document.body.dataset.step === "other");
+  await page.locator('[data-also="no"]').tap();
+  await page.waitForFunction(() => document.body.dataset.step === "name");
+  assert.equal(await label(), "Save our spot", `${size} conditional at 2`);
+  await page.locator("#party-inc").tap();
+  assert.equal(await label(), "Save our spot", `${size} conditional stepper`);
+  await page.locator("#party-dec").tap();
+  await page.locator(".step.is-active [data-back]").tap();
+  await page.waitForFunction(() => document.body.dataset.step === "other");
+  await page.locator('[data-also="yes"]').tap();
+  await page.waitForFunction(() => document.body.dataset.step === "name");
+  assert.equal(await label(), "Count us in", `${size} definite again`);
+  if (shots && viewport.width === 390) {
+    await page.fill("#name", "Evan Prothro");
+    await page.screenshot({ path: `${shots}/count-us-in-${size}.png` });
+    console.log("shot", `count-us-in-${size}`);
+    await page.fill("#name", "");
+  }
+  await page.fill("#name", "Westley");
+  await page.locator("#name-submit").tap();
+  await page.waitForFunction(() => document.body.dataset.step === "confirm");
+  assert.equal(submitted.at(-1).p_party_size, 2, `${size} saved headcount`);
+  await page.locator("#change").tap();
+  await page.waitForFunction(() => document.body.dataset.step === "pick");
+  await page.locator('.poster[data-movie="princess_bride"]').tap();
+  await page.locator('[data-also="yes"]').tap();
+  await page.waitForFunction(() => document.body.dataset.step === "name");
+  assert.equal(await page.locator("#party-value").innerText(), "2", `${size} edited headcount`);
+  await page.waitForFunction(() => getComputedStyle(document.querySelector(".step.is-active")).transform === "none");
+  assert.equal(await label(), "Update", `${size} editing a pair`);
+  const editing = await box();
+  await page.locator("#party-inc").tap();
+  await page.locator("#party-dec").tap();
+  assert.equal(await label(), "Update", `${size} editing stepper`);
+  assert.deepEqual(await box(), editing, `${size} update button shifted`);
+  console.log("ok", size, "count us in");
+  await context.close();
+}
+
 const maps = {
   google: "https://www.google.com/maps/dir/?api=1&destination=32.15498,-95.36768",
   apple: "https://maps.apple.com/?daddr=32.15498,-95.36768&dirflg=d",

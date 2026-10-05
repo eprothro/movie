@@ -312,7 +312,7 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
   if (step === "other") markAlso();
   if (step === "name") {
     const conditional = state.also === "no" && state.pick;
-    els.nameSubmit.textContent = state.rsvp ? "Update" : conditional ? "Save our spot" : "Count me in";
+    els.nameSubmit.textContent = nameButtonLabel();
     document.getElementById("name-title").textContent = conditional
       ? `Who's coming? (assuming ${movieTitle(state.pick)} wins)`
       : "Who's coming?";
@@ -510,6 +510,12 @@ function chairEl(index) {
   return el;
 }
 
+function nameButtonLabel() {
+  if (state.rsvp) return "Update";
+  if (state.also === "no" && state.pick) return "Save our spot";
+  return state.partySize > 1 ? "Count us in" : "Count me in";
+}
+
 function setParty(next, { quiet = false } = {}) {
   const prev = state.partySize;
   state.partySize = Math.min(10, Math.max(1, next));
@@ -517,6 +523,7 @@ function setParty(next, { quiet = false } = {}) {
   els.partyValue.setAttribute("aria-label", state.partySize === 1 ? "1 person" : `${state.partySize} people`);
   els.partyDec.disabled = state.partySize <= 1;
   els.partyInc.disabled = state.partySize >= 10;
+  if (state.step === "name") els.nameSubmit.textContent = nameButtonLabel();
   const root = els.chairs;
   const n = state.partySize;
   if (quiet || reduced || root.children.length === 0) {
