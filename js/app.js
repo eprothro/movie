@@ -677,7 +677,7 @@ function renderVotes() {
   });
   els.votes.setAttribute(
     "aria-label",
-    `Votes so far: ${EVENT.movies.map((movie) => `${movie.title} ${counts[movie.id]}`).join(", ")}.`,
+    `People so far: ${EVENT.movies.map((movie) => `${movie.title} ${counts[movie.id]}`).join(", ")}.`,
   );
 }
 

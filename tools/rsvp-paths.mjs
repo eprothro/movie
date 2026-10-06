@@ -124,7 +124,7 @@ async function confirmChrome(page, label) {
   }));
   assert.equal(boxes.change.hidden, false, `${label} Change RSVP hidden`);
   assert.match(boxes.change.text, /Change RSVP/, `${label} Change RSVP`);
-  assert.match(boxes.votes.text, /votes so far/i, `${label} standings`);
+  assert.match(boxes.votes.text, /people so far/i, `${label} standings`);
   assert.match(boxes.votes.text, /The Princess Bride/, `${label} princess tub`);
   assert.match(boxes.votes.text, /Top Gun: Maverick/, `${label} top gun tub`);
   assert.match(boxes.votes.label, /The Princess Bride 2/, `${label} princess count`);
