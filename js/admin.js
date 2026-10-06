@@ -272,7 +272,7 @@ function renderBook(data) {
     big.innerHTML = `<b>${people}</b> ${people === 1 ? "person" : "people"}`;
     const vote = document.createElement("p");
     vote.className = "proj-votes";
-    vote.textContent = `${count} ${count === 1 ? "vote" : "votes"}${id === lead ? " · leading" : ""}`;
+    vote.textContent = `${peopleLabel(count)} voting${id === lead ? " · leading" : ""}`;
     card.append(title, big, vote);
     projection.append(card);
   });
