@@ -1,90 +1,124 @@
 // Sunset for a local calendar date.
-// Equations follow the SunCalc / NOAA solar calculator
-// (Vladimir Agafonkin, MIT; based on Astronomy Answers / NOAA).
-// Accurate to about a minute at mid-latitudes. No network calls.
+// Equations are the NOAA solar calculator (gml.noaa.gov/grad/solcalc),
+// from Jean Meeus, Astronomical Algorithms: Julian century, geometric
+// mean longitude and anomaly, equation of center, apparent longitude,
+// obliquity correction, declination, and the equation of time.
+// Official sunset is the instant the sun's center is at zenith 90.833°
+// (refraction −0.833°). The UTC minute is evaluated twice, first at
+// 0h UT and then at that estimate. No network calls.
 
-const PI = Math.PI;
-const RAD = PI / 180;
 const DAY_MS = 86400000;
-const J1970 = 2440588;
-const J2000 = 2451545;
-const J0 = 0.0009;
-const OBLIQUITY = RAD * 23.4397;
+const ZENITH = 90.833;
 
-function toJulian(date) {
-  return date.valueOf() / DAY_MS - 0.5 + J1970;
+function degToRad(deg) {
+  return (Math.PI * deg) / 180;
 }
 
-function fromJulian(julian) {
-  return new Date((julian + 0.5 - J1970) * DAY_MS);
+function radToDeg(rad) {
+  return (180 * rad) / Math.PI;
 }
 
-function toDays(date) {
-  return toJulian(date) - J2000;
+function wrap360(deg) {
+  const wrapped = deg % 360;
+  return wrapped < 0 ? wrapped + 360 : wrapped;
 }
 
-function rightAscension(eclipticLon, eclipticLat) {
-  return Math.atan2(
-    Math.sin(eclipticLon) * Math.cos(OBLIQUITY) - Math.tan(eclipticLat) * Math.sin(OBLIQUITY),
-    Math.cos(eclipticLon),
+/** Julian day at 0h UT. Valid for 1901–2099, matching the NOAA sheet. */
+function julianDay(year, month, day) {
+  let y = year;
+  let m = month;
+  if (m <= 2) {
+    y -= 1;
+    m += 12;
+  }
+  const century = Math.floor(y / 100);
+  const gregorian = 2 - century + Math.floor(century / 4);
+  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (m + 1)) + day + gregorian - 1524.5;
+}
+
+function julianCentury(jd) {
+  return (jd - 2451545) / 36525;
+}
+
+function geomMeanLong(t) {
+  return wrap360(280.46646 + t * (36000.76983 + t * 0.0003032));
+}
+
+function geomMeanAnomaly(t) {
+  return 357.52911 + t * (35999.05029 - 0.0001537 * t);
+}
+
+function eccentricity(t) {
+  return 0.016708634 - t * (0.000042037 + 0.0000001267 * t);
+}
+
+function equationOfCenter(t) {
+  const anomaly = degToRad(geomMeanAnomaly(t));
+  return (
+    Math.sin(anomaly) * (1.914602 - t * (0.004817 + 0.000014 * t)) +
+    Math.sin(2 * anomaly) * (0.019993 - 0.000101 * t) +
+    Math.sin(3 * anomaly) * 0.000289
   );
 }
 
-function declination(eclipticLon, eclipticLat) {
-  return Math.asin(
-    Math.sin(eclipticLat) * Math.cos(OBLIQUITY) +
-      Math.cos(eclipticLat) * Math.sin(OBLIQUITY) * Math.sin(eclipticLon),
-  );
+function obliquity(t) {
+  const seconds = 21.448 - t * (46.815 + t * (0.00059 - t * 0.001813));
+  const mean = 23 + (26 + seconds / 60) / 60;
+  const omega = 125.04 - 1934.136 * t;
+  return mean + 0.00256 * Math.cos(degToRad(omega));
 }
 
-function solarMeanAnomaly(days) {
-  return RAD * (357.5291 + 0.98560028 * days);
+function apparentLongitude(t) {
+  const omega = 125.04 - 1934.136 * t;
+  return geomMeanLong(t) + equationOfCenter(t) - 0.00569 - 0.00478 * Math.sin(degToRad(omega));
 }
 
-function eclipticLongitude(anomaly) {
-  const center =
-    RAD * (1.9148 * Math.sin(anomaly) + 0.02 * Math.sin(2 * anomaly) + 0.0003 * Math.sin(3 * anomaly));
-  const perihelion = RAD * 102.9372;
-  return anomaly + center + perihelion + PI;
+/** Declination in radians. */
+function declination(t) {
+  return Math.asin(Math.sin(degToRad(obliquity(t))) * Math.sin(degToRad(apparentLongitude(t))));
 }
 
-function julianCycle(days, lw) {
-  return Math.round(days - J0 - lw / (2 * PI));
+/** Equation of time in minutes. */
+function equationOfTime(t) {
+  const y = Math.tan(degToRad(obliquity(t)) / 2) ** 2;
+  const longitude = degToRad(geomMeanLong(t));
+  const anomaly = degToRad(geomMeanAnomaly(t));
+  const orbit = eccentricity(t);
+  const eq =
+    y * Math.sin(2 * longitude) -
+    2 * orbit * Math.sin(anomaly) +
+    4 * orbit * y * Math.sin(anomaly) * Math.cos(2 * longitude) -
+    0.5 * y * y * Math.sin(4 * longitude) -
+    1.25 * orbit * orbit * Math.sin(2 * anomaly);
+  return radToDeg(eq) * 4;
 }
 
-function approxTransit(hourAngle, lw, cycle) {
-  return J0 + (hourAngle + lw) / (2 * PI) + cycle;
+/**
+ * Minutes from 0h UT until sunset. Longitude is degrees, negative west.
+ * NaN when the sun does not set (polar day or night).
+ */
+function sunsetUtcMinutes(jd, latitude, longitude) {
+  const t = julianCentury(jd);
+  const dec = declination(t);
+  const lat = degToRad(latitude);
+  const cosHour =
+    Math.cos(degToRad(ZENITH)) / (Math.cos(lat) * Math.cos(dec)) - Math.tan(lat) * Math.tan(dec);
+  if (cosHour < -1 || cosHour > 1) return NaN;
+  const hourAngle = -Math.acos(cosHour);
+  return 720 - 4 * (longitude + radToDeg(hourAngle)) - equationOfTime(t);
 }
 
-function solarTransit(daysSince, anomaly, longitude) {
-  return J2000 + daysSince + 0.0053 * Math.sin(anomaly) - 0.0069 * Math.sin(2 * longitude);
-}
-
-function hourAngle(altitude, latitude, dec) {
-  return Math.acos(
-    (Math.sin(altitude) - Math.sin(latitude) * Math.sin(dec)) / (Math.cos(latitude) * Math.cos(dec)),
-  );
-}
-
-function getSetJulian(altitude, lw, latitude, dec, cycle, anomaly, longitude) {
-  const angle = hourAngle(altitude, latitude, dec);
-  const approx = approxTransit(angle, lw, cycle);
-  return solarTransit(approx, anomaly, longitude);
-}
-
-/** UTC instant of official sunset (zenith 90.833°) for the UTC day containing `date`. */
+/** UTC instant of official sunset for the UTC day containing `date`. */
 export function sunsetAt(date, latitude, longitude) {
-  const lw = RAD * -longitude;
-  const phi = RAD * latitude;
-  const days = toDays(date);
-  const cycle = julianCycle(days, lw);
-  const transitDays = approxTransit(0, lw, cycle);
-  const anomaly = solarMeanAnomaly(transitDays);
-  const longitudeEcl = eclipticLongitude(anomaly);
-  const dec = declination(longitudeEcl, 0);
-  // -0.833° accounts for refraction and the sun's radius.
-  const altitude = -0.833 * RAD;
-  return fromJulian(getSetJulian(altitude, lw, phi, dec, cycle, anomaly, longitudeEcl));
+  const year = date.getUTCFullYear();
+  const month = date.getUTCMonth() + 1;
+  const day = date.getUTCDate();
+  const jd = julianDay(year, month, day);
+  const first = sunsetUtcMinutes(jd, latitude, longitude);
+  if (Number.isNaN(first)) return new Date(NaN);
+  const refined = sunsetUtcMinutes(jd + first / 1440, latitude, longitude);
+  if (Number.isNaN(refined)) return new Date(NaN);
+  return new Date(Date.UTC(year, month - 1, day) + refined * 60000);
 }
 
 /** UTC instant of a wall-clock time in an IANA timezone. */

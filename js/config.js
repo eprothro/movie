@@ -6,7 +6,7 @@ export const EVENT = {
   year: 2026,
   month: 10,
   day: 10,
-  minutesAfterSunset: 15,
+  minutesAfterSunset: 20,
   address: "11921 County Road 152 W, Bullard, TX 75757",
   latitude: 32.15498,
   longitude: -95.36768,
