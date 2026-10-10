@@ -1,6 +1,6 @@
 # Prothro Movie Night
 
-A single-page invite for Saturday, October 10, 2026. Guests RSVP and vote between **The Princess Bride** and **Top Gun: Maverick**. Showtime is 15 minutes after local sunset, computed in the browser.
+A single-page invite for Saturday, October 10, 2026. Guests RSVP and vote between **The Princess Bride** and **Top Gun: Maverick**. Showtime is 20 minutes after local sunset, computed in the browser.
 
 The site is static. GitHub Pages serves it from the `main` branch root. The custom domain is `movie.prothro.site` (`CNAME`).
 
@@ -18,7 +18,7 @@ The site is static. GitHub Pages serves it from the `main` branch root. The cust
 
 Until step 2, `/admin/` will say the PIN isn't set. Until step 1, saving an RSVP fails with a short "try again" message.
 
-Showtime is 15 minutes after sunset at the backyard, 32.15498, -95.36768 (`America/Chicago`). On October 10, 2026 that is **7:11 PM CT** (sunset 6:56 PM). The invite offers directions to 11921 County Road 152 W, Bullard, TX 75757. Change `js/config.js` only if the screening moves.
+Showtime is 20 minutes after sunset at the backyard, 32.15498, -95.36768 (`America/Chicago`). On October 10, 2026 that is **7:14 PM CT** (sunset 6:54 PM). The invite offers directions to 11921 County Road 152 W, Bullard, TX 75757. Change `js/config.js` only if the screening moves.
 
 ## Admin
 
