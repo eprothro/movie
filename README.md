@@ -1,12 +1,12 @@
 # Prothro Movie Night
 
-A single-page invite for Saturday, October 10, 2026. Guests RSVP and vote between **The Princess Bride** and **Top Gun: Maverick**. Showtime is 20 minutes after local sunset, computed in the browser.
+A single-page invite for Friday, October 30, 2026. Guests RSVP and vote between **Inside Out** and **The Wild Robot**. Showtime is 20 minutes after local sunset, computed in the browser.
 
 The site is static. GitHub Pages serves it from the `main` branch root. The custom domain is `movie.prothro.site` (`CNAME`).
 
 ## Before it works
 
-1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), run the whole file [`supabase/migrations/001_movie_night.sql`](supabase/migrations/001_movie_night.sql). Production already has it. It is safe to re-run, and the PIN hash is not touched. Then run [`supabase/migrations/002_princess_bride.sql`](supabase/migrations/002_princess_bride.sql), which puts The Princess Bride on the ballot and adds the reset. It is safe to re-run too.
+1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), the first three migrations are already applied. Run [`supabase/migrations/20261013200000_history.sql`](supabase/migrations/20261013200000_history.sql) by hand. It is safe to re-run. It keeps every existing RSVP, files those rows under October 10, records that night's winner from the vote headcount, and opens an empty October 30 night. Do not re-run `001`–`003` after it, and do not run it from the deploy. The PIN hash is not touched.
 2. Set the host PIN (4–8 digits). This is the only place the PIN should exist. Do not commit it.
 
    ```sql
@@ -18,15 +18,15 @@ The site is static. GitHub Pages serves it from the `main` branch root. The cust
 
 Until step 2, `/admin/` will say the PIN isn't set. Until step 1, saving an RSVP fails with a short "try again" message.
 
-Showtime is 20 minutes after sunset at the backyard, 32.15498, -95.36768 (`America/Chicago`). On October 10, 2026 that is **7:14 PM CT** (sunset 6:54 PM). The invite offers directions to 11921 County Road 152 W, Bullard, TX 75757. Change `js/config.js` only if the screening moves.
+Showtime is 20 minutes after sunset at the backyard, 32.15498, -95.36768 (`America/Chicago`). On October 30, 2026 that is **6:52 PM CT** (sunset 6:32 PM). October 10 was 7:14 PM CT. The invite offers directions to 11921 County Road 152 W, Bullard, TX 75757. Change `js/config.js` only if the screening moves.
 
 ## Admin
 
-[`/admin/`](admin/index.html) is not linked from the invite and is `noindex`. Evan and Julie enter the PIN on a keypad. It stays in `sessionStorage` until the tab closes or they tap **Lock**.
+[`/admin/`](admin/index.html) is not linked from the invite and is `noindex`. A double-tap on the backyard projector opens it. One tap does nothing. Evan and Julie enter a 4-digit PIN on the keypad, by pasting, or with the phone's number pad. The fourth digit submits. A wrong PIN clears the dots and shakes them. The PIN stays in `sessionStorage` until the tab closes or they tap **Lock**.
 
 Five wrong PINs lock admin calls for 10 minutes. The PIN is stored only as a bcrypt hash (`pgcrypto`). Anon cannot read `movie_settings`.
 
-The guest book lists every RSVP. Each row stores `would_attend` (`princess_bride`, `top_gun`, `both`, or `none`) and `vote` (the preferred movie, or null). Hosts can reset the book, which deletes every RSVP and vote. The public page shows vote counts. The booth also shows projected headcount: people who would come if that movie plays, counting anyone marked for that movie or for both. Hosts can remove an entry and close or reopen RSVPs and voting.
+The guest book lists this night's RSVPs. Each row stores `would_attend` (`inside_out_2026`, `wild_robot`, `both`, or `none`) and `vote` (the preferred movie, or null). October 10 rows stay on that event (`princess_bride`, `top_gun`). Hosts can reset the book, which deletes this night's RSVPs and votes and leaves past nights. The public page shows vote counts for the current night. The booth also shows projected headcount: people who would come if that movie plays, counting anyone marked for that movie or for both. Under the guest list, **Past nights** shows the date, the two movies, the winner, total headcount (sum of `party_size`), and the vote headcount for each movie. Hosts can remove an entry and close or reopen RSVPs and voting.
 
 ## How RSVPs are stored
 
@@ -37,9 +37,9 @@ Row level security is on, with no policies, and table privileges are revoked fro
 | `movie_submit_rsvp` | guest | Create or update. Returns an edit token. |
 | `movie_get_rsvp` | guest | Their own RSVP, by token. |
 | `movie_get_standings` | anyone | Vote counts. No names, no per-movie headcount. |
-| `movie_admin_overview` | hosts | Full list. Requires the PIN. |
-| `movie_admin_delete` | hosts | Remove one RSVP. |
-| `movie_admin_reset` | hosts | Delete every RSVP and vote. Requires the PIN. |
+| `movie_admin_overview` | hosts | This night's list, plus past nights. Requires the PIN. |
+| `movie_admin_delete` | hosts | Remove one RSVP from this night. |
+| `movie_admin_reset` | hosts | Delete this night's RSVPs and votes. Past nights stay. |
 | `movie_admin_set_open` | hosts | Open or close RSVPs and voting. |
 | `movie_set_admin_pin` | SQL editor only | Not granted to anon. |
 

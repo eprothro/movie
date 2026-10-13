@@ -2,10 +2,13 @@
 
 export const EVENT = {
   title: "Prothro Movie Night",
-  dateLabel: "Saturday, October 10",
+  dateLabel: "Friday, October 30",
+  dateShort: "Friday, Oct 30",
+  dateCompact: "Fri, Oct 30",
+  weekday: "Friday",
   year: 2026,
   month: 10,
-  day: 10,
+  day: 30,
   minutesAfterSunset: 20,
   address: "11921 County Road 152 W, Bullard, TX 75757",
   latitude: 32.15498,
@@ -13,8 +16,8 @@ export const EVENT = {
   timezone: "America/Chicago",
 
   movies: [
-    { id: "princess_bride", title: "The Princess Bride", short: "Princess Bride", year: "1987" },
-    { id: "top_gun", title: "Top Gun: Maverick", short: "Top Gun", year: "2022" },
+    { id: "inside_out_2026", title: "Inside Out", short: "Inside Out", year: "2015" },
+    { id: "wild_robot", title: "The Wild Robot", short: "Wild Robot", year: "2024" },
   ],
 
   supabaseUrl: "https://yhiynwocgqskcmldrmyd.supabase.co",

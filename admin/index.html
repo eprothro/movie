@@ -25,7 +25,10 @@
     <section class="pin-screen" id="pin-screen">
       <p class="eyebrow">Projection booth</p>
       <h1>Movie <em>Night</em></h1>
-      <div class="pin-dots" id="pin-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <div class="pin-lock">
+        <input id="pin-entry" class="pin-entry" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" maxlength="4" enterkeyhint="done" aria-label="PIN">
+        <div class="pin-dots" id="pin-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      </div>
       <p class="sr-only" id="pin-live" aria-live="polite"></p>
       <div class="keypad" id="keypad" role="group" aria-label="PIN keypad">
         <button type="button" data-digit="1">1</button>
@@ -43,7 +46,6 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h10a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 19 18H9l-5.5-6z M12.5 9.5l5 5 M17.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
         </button>
       </div>
-      <button type="button" class="unlock" id="unlock" disabled>Unlock</button>
       <p class="pin-error" id="pin-error" role="alert"></p>
     </section>
 
@@ -79,8 +81,11 @@
       <h3 class="list-head">Guests <span id="guest-count"></span></h3>
       <div id="guest-list" class="guests"></div>
 
+      <h3 class="list-head" id="past-head" hidden>Past nights</h3>
+      <div id="past-nights" class="past" hidden></div>
+
       <div class="reset">
-        <p class="reset-note" id="reset-note" hidden>This deletes every RSVP and vote.</p>
+        <p class="reset-note" id="reset-note" hidden>This deletes this night's RSVPs and votes. Past nights stay.</p>
         <div class="reset-actions">
           <button type="button" class="chip danger" id="reset">Reset votes</button>
           <button type="button" class="chip" id="reset-cancel" hidden>Cancel</button>

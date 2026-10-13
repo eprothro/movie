@@ -11,8 +11,8 @@ const shots = process.env.RSVP_SHOTS || "";
 if (shots) fs.mkdirSync(shots, { recursive: true });
 
 const movies = [
-  ["princess_bride", "The Princess Bride"],
-  ["top_gun", "Top Gun: Maverick"],
+  ["inside_out_2026", "Inside Out"],
+  ["wild_robot", "The Wild Robot"],
 ];
 
 const browser = await chromium.launch();
@@ -30,7 +30,7 @@ async function newPage(viewport, userAgent) {
   await context.route("**/rest/v1/rpc/**", async (route) => {
     const fn = route.request().url().split("/rpc/")[1].split("?")[0];
     const body = route.request().postDataJSON() || {};
-    const votes = { princess_bride: 2, top_gun: 1 };
+    const votes = { inside_out_2026: 2, wild_robot: 1 };
     let data;
     if (fn === "movie_submit_rsvp") {
       submitted.push(body);
@@ -125,10 +125,10 @@ async function confirmChrome(page, label) {
   assert.equal(boxes.change.hidden, false, `${label} Change RSVP hidden`);
   assert.match(boxes.change.text, /Change RSVP/, `${label} Change RSVP`);
   assert.match(boxes.votes.text, /people so far/i, `${label} standings`);
-  assert.match(boxes.votes.text, /The Princess Bride/, `${label} princess tub`);
-  assert.match(boxes.votes.text, /Top Gun: Maverick/, `${label} top gun tub`);
-  assert.match(boxes.votes.label, /The Princess Bride 2/, `${label} princess count`);
-  assert.match(boxes.votes.label, /Top Gun: Maverick 1/, `${label} top gun count`);
+  assert.match(boxes.votes.text, /Inside Out/, `${label} princess tub`);
+  assert.match(boxes.votes.text, /The Wild Robot/, `${label} top gun tub`);
+  assert.match(boxes.votes.label, /Inside Out 2/, `${label} princess count`);
+  assert.match(boxes.votes.label, /The Wild Robot 1/, `${label} top gun count`);
   assert.ok(boxes.votes.top >= -1 && boxes.votes.bottom <= boxes.vh + 1, `${label} standings in view`);
   assert.ok(boxes.change.top < boxes.vh - 8, `${label} Change RSVP in view`);
   assert.equal(await page.locator(".route-alt, [data-dir-alt]").count(), 0, `${label} secondary maps link`);
@@ -198,20 +198,20 @@ for (const viewport of viewports) {
       assert.equal(payload.p_vote, id);
       assert.equal(payload.p_would_attend, conditional ? id : "both");
       assert.equal(done.kicker, "");
-      assert.equal(done.line, "See you Saturday");
+      assert.equal(done.line, "See you Friday");
       assert.equal(done.headingHidden, true);
       const line = await oneLine(page, "#screen-line");
       assert.equal(line.lines, 1, `${id} ${answer} screen line wraps at ${size}`);
       assert.equal(line.inside, true, `${id} ${answer} screen line overflows at ${size}`);
       if (conditional) {
         assert.equal(done.sub, `if ${title} wins`);
-        assert.equal(done.heading, `See you Saturday if ${title} wins.`);
+        assert.equal(done.heading, `See you Friday if ${title} wins.`);
         const sub = await oneLine(page, "#screen-sub");
         assert.equal(sub.lines, 1, `${id} screen subtitle wraps at ${size}`);
         assert.equal(sub.inside, true, `${id} screen subtitle overflows at ${size}`);
       } else {
         assert.equal(done.sub, "");
-        assert.equal(done.heading, "See you Saturday.");
+        assert.equal(done.heading, "See you Friday.");
         const subLines = await page.locator("#screen-sub").evaluate((el) => el.getClientRects().length);
         assert.equal(subLines, 0, `${id} still-in subline`);
       }
@@ -219,7 +219,7 @@ for (const viewport of viewports) {
       if (shots && !conditional) {
         await page.screenshot({ path: `${shots}/still-in-${id}-${size}.png` });
       }
-      if (shots && conditional && id === "princess_bride") {
+      if (shots && conditional && id === "inside_out_2026") {
         await page.screenshot({ path: `${shots}/conditional-${id}-${size}.png` });
       }
       console.log("ok", size, id, answer, button, JSON.stringify(ask.sub), "->", payload.p_would_attend);
@@ -251,8 +251,8 @@ for (const viewport of viewports) {
   }
 
   {
-    const id = "princess_bride";
-    const title = "The Princess Bride";
+    const id = "inside_out_2026";
+    const title = "Inside Out";
     const { context, page } = await newPage(viewport);
     await page.evaluate(() => {
       window.__seen = [];
@@ -292,7 +292,7 @@ for (const viewport of viewports) {
     await page.locator("#name-submit").tap();
     await page.waitForFunction(() => document.body.dataset.step === "confirm");
     const still = await screen(page);
-    assert.equal(still.line, "See you Saturday");
+    assert.equal(still.line, "See you Friday");
     assert.equal(still.sub, "");
     assert.equal(still.kicker, "");
     assert.equal(still.headingHidden, true);
@@ -317,7 +317,7 @@ for (const viewport of viewports) {
     await page.locator("#name-submit").tap();
     await page.waitForFunction(() => document.body.dataset.step === "confirm");
     const again = await screen(page);
-    assert.equal(again.line, "See you Saturday");
+    assert.equal(again.line, "See you Friday");
     assert.equal(again.sub, "");
     assert.equal(again.kicker, "");
     assert.equal(again.headingHidden, true);
@@ -332,7 +332,7 @@ for (const viewport of viewports) {
     await page.locator("#name-submit").tap();
     await page.waitForFunction(() => document.body.dataset.step === "confirm");
     const conditional = await screen(page);
-    assert.equal(conditional.line, "See you Saturday");
+    assert.equal(conditional.line, "See you Friday");
     assert.equal(conditional.sub, `if ${title} wins`);
     assert.equal(conditional.kicker, "");
     assert.equal(conditional.headingHidden, true);
@@ -345,7 +345,7 @@ for (const viewport of viewports) {
       if (kicker === "Your vote") return true;
       if (line === title) return true;
       if (heading === "shown" && step === "confirm") return true;
-      if (step === "confirm" && line === "See you Saturday" && sub.startsWith("if ") && !sub.includes(title)) return true;
+      if (step === "confirm" && line === "See you Friday" && sub.startsWith("if ") && !sub.includes(title)) return true;
       return false;
     });
     assert.deepEqual(flashed, [], `${size} stale screen text`);
@@ -365,7 +365,7 @@ for (const viewport of viewports) {
       return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) };
     });
   };
-  await page.locator('.poster[data-movie="princess_bride"]').tap();
+  await page.locator('.poster[data-movie="inside_out_2026"]').tap();
   await page.locator('[data-also="yes"]').tap();
   await page.waitForFunction(() => document.body.dataset.step === "name");
   await page.waitForFunction(() => getComputedStyle(document.querySelector(".step.is-active")).transform === "none");
@@ -410,7 +410,7 @@ for (const viewport of viewports) {
   assert.equal(submitted.at(-1).p_party_size, 2, `${size} saved headcount`);
   await page.locator("#change").tap();
   await page.waitForFunction(() => document.body.dataset.step === "pick");
-  await page.locator('.poster[data-movie="princess_bride"]').tap();
+  await page.locator('.poster[data-movie="inside_out_2026"]').tap();
   await page.locator('[data-also="yes"]').tap();
   await page.waitForFunction(() => document.body.dataset.step === "name");
   assert.equal(await page.locator("#party-value").innerText(), "2", `${size} edited headcount`);
@@ -475,14 +475,14 @@ assertMaps(await directions(desktopUA), maps.google, "desktop");
 console.log("ok directions", maps.apple, maps.geo, maps.google);
 
 const introCases = [
-  ["2026-10-09T15:00-05:00", false, "friday"],
-  ["2026-10-10T11:59-05:00", false, "saturday-1159"],
-  ["2026-10-10T12:00-05:00", true, "saturday-noon"],
-  ["2026-10-10T13:00-05:00", true, "saturday-1pm"],
-  ["2026-10-10T21:00-05:00", true, "saturday-9pm"],
-  ["2026-10-11T10:00-05:00", false, "sunday"],
-  ["2026-10-10T16:59:00Z", false, "utc-before-noon-chicago"],
-  ["2026-10-10T17:00:00Z", true, "utc-noon-chicago"],
+  ["2026-10-29T15:00-05:00", false, "thursday"],
+  ["2026-10-30T11:59-05:00", false, "friday-1159"],
+  ["2026-10-30T12:00-05:00", true, "friday-noon"],
+  ["2026-10-30T13:00-05:00", true, "friday-1pm"],
+  ["2026-10-30T21:00-05:00", true, "friday-9pm"],
+  ["2026-10-31T10:00-05:00", false, "saturday"],
+  ["2026-10-30T16:59:00Z", false, "utc-before-noon-chicago"],
+  ["2026-10-30T17:00:00Z", true, "utc-noon-chicago"],
 ];
 
 function countdownText(nowIso, showIso) {
@@ -558,8 +558,8 @@ async function introAt(now, viewport) {
 for (const [now, tonight, label] of introCases) {
   const { context, info } = await introAt(now, { width: 390, height: 844 });
   assert.equal(info.tonight, tonight, label);
-  assert.equal(info.date, tonight ? "Tonight" : "Saturday, Oct 10", label);
-  assert.equal(info.rm, tonight ? "Tonight" : "Saturday, Oct 10", label);
+  assert.equal(info.date, tonight ? "Tonight" : "Friday, Oct 30", label);
+  assert.equal(info.rm, tonight ? "Tonight" : "Friday, Oct 30", label);
   assert.equal(info.place, tonight ? "Directions" : "Bullard, TX", label);
   assert.equal(info.bring, "Snacks provided||Bring your own chair", label);
   assert.ok(Math.abs(info.bringGaps.bring.left - info.bringGaps.bring.right) < 1, `${label} dot ${info.bringGaps.bring.left} ${info.bringGaps.bring.right}`);
@@ -595,10 +595,10 @@ for (const [now, tonight, label] of introCases) {
   });
   const page = await context.newPage();
   const url = new URL(base);
-  url.searchParams.set("now", "2026-10-10T13:00-05:00");
+  url.searchParams.set("now", "2026-10-30T13:00-05:00");
   await page.goto(url.href, { waitUntil: "load" });
   const href = await page.locator(".hero .where").getAttribute("href");
-  assert.equal(href, maps.apple, "saturday iphone directions");
+  assert.equal(href, maps.apple, "friday iphone directions");
   assert.equal(await page.locator(".hero .where span").textContent(), "Directions");
   await context.close();
   console.log("ok intro iphone directions");
@@ -684,14 +684,14 @@ for (const viewport of [
 
 if (shots) {
   const shotsWanted = [
-    ["2026-10-10T13:00-05:00", { width: 375, height: 667 }, "intro-saturday-1pm-375x667"],
-    ["2026-10-10T13:00-05:00", { width: 390, height: 844 }, "intro-saturday-1pm-390x844"],
-    ["2026-10-09T15:00-05:00", { width: 375, height: 667 }, "intro-normal-375x667"],
-    ["2026-10-09T15:00-05:00", { width: 390, height: 844 }, "intro-normal-390x844"],
+    ["2026-10-30T13:00-05:00", { width: 375, height: 667 }, "intro-friday-1pm-375x667"],
+    ["2026-10-30T13:00-05:00", { width: 390, height: 844 }, "intro-friday-1pm-390x844"],
+    ["2026-10-29T15:00-05:00", { width: 375, height: 667 }, "intro-normal-375x667"],
+    ["2026-10-29T15:00-05:00", { width: 390, height: 844 }, "intro-normal-390x844"],
   ];
   for (const [now, viewport, name] of shotsWanted) {
     const { context, page, info } = await introAt(now, viewport);
-    assert.equal(info.place, name.startsWith("intro-saturday") ? "Directions" : "Bullard, TX", name);
+    assert.equal(info.place, name.startsWith("intro-friday") ? "Directions" : "Bullard, TX", name);
     assert.equal(info.bring, "Snacks provided||Bring your own chair", name);
     assert.equal(info.countdown, countdownText(now, info.showtime), name);
     if (name.includes("1pm") && viewport.height > 740) assert.ok(info.gap >= 18, `${name} gap ${info.gap}`);
@@ -722,6 +722,55 @@ if (shots) {
     console.log("shot", name);
     await context.close();
   }
+}
+
+{
+  const { context, page } = await newPage({ width: 390, height: 844 });
+  const meta = await page.locator('meta[name="description"]').getAttribute("content");
+  const show = (await page.locator("#showtime").innerText()).trim();
+  assert.match(meta, /Friday, October 30/);
+  assert.match(meta, /Inside Out/);
+  assert.match(meta, /The Wild Robot/);
+  assert.doesNotMatch(meta, /Saturday|Top Gun|Princess Bride/);
+  assert.equal(show, "6:52 PM");
+  assert.equal(await page.locator("#date-label").innerText(), "Friday, Oct 30");
+  console.log("ok friday copy", show);
+  await context.close();
+}
+
+{
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    reducedMotion: "reduce",
+  });
+  await context.route("**/rest/v1/rpc/**", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        rsvp: null,
+        votes: { inside_out_2026: 0, wild_robot: 0 },
+        rsvps_open: false,
+        voting_open: true,
+      }),
+    });
+  });
+  const page = await context.newPage();
+  page.on("pageerror", (error) => {
+    throw error;
+  });
+  await page.goto(base, { waitUntil: "load" });
+  await page.waitForFunction(() => document.getElementById("screen-line").textContent === "RSVPs closed");
+  const info = await screen(page);
+  const time = (await page.locator("#showtime").innerText()).trim();
+  assert.equal(info.kicker, `Fri, Oct 30 · ${time}`);
+  assert.equal(info.line, "RSVPs closed");
+  assert.doesNotMatch(`${info.kicker} ${info.line}`, /Sat/);
+  console.log("ok closed friday", info.kicker);
+  await context.close();
 }
 
 await browser.close();

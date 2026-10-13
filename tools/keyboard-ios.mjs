@@ -184,7 +184,7 @@ async function phonePage(browser, phone) {
   await context.route("**/rest/v1/rpc/**", async (route) => {
     const fn = route.request().url().split("/rpc/")[1].split("?")[0];
     const body = route.request().postDataJSON() || {};
-    const votes = { princess_bride: 2, top_gun: 1 };
+    const votes = { inside_out_2026: 2, wild_robot: 1 };
     let data = { ok: true, rsvp: null, votes, rsvps_open: true, voting_open: true };
     if (fn === "movie_submit_rsvp") {
       sent.push(body);
@@ -202,6 +202,13 @@ async function phonePage(browser, phone) {
     throw error;
   });
   await page.goto(base, { waitUntil: "load" });
+  // The cue fades in. A click during that move can scroll the page, which
+  // hides the cue, so wait until it has arrived.
+  await page.waitForFunction(() => {
+    const cue = document.getElementById("cue");
+    const style = getComputedStyle(cue);
+    return Number(style.opacity) > 0.99 && style.visibility === "visible" && style.pointerEvents !== "none";
+  });
   await page.locator("#cue").click();
   await page.waitForFunction(() => document.body.dataset.screen === "card", null, { timeout: 15000 });
   await page.waitForFunction(() => {
@@ -317,7 +324,7 @@ async function shot(page, name) {
 }
 
 async function toName(page, label) {
-  await page.locator('.poster[data-movie="princess_bride"]').tap();
+  await page.locator('.poster[data-movie="inside_out_2026"]').tap();
   await page.locator(`[data-also="${label === "Save our spot" ? "no" : "yes"}"]`).tap();
   await page.waitForFunction(() => document.body.dataset.step === "name");
   if (label === "Update") {
@@ -326,7 +333,7 @@ async function toName(page, label) {
     await page.waitForFunction(() => document.body.dataset.step === "confirm");
     await page.locator("#change").tap();
     await page.waitForFunction(() => document.body.dataset.step === "pick");
-    await page.locator('.poster[data-movie="princess_bride"]').tap();
+    await page.locator('.poster[data-movie="inside_out_2026"]').tap();
     await page.locator('[data-also="yes"]').tap();
     await page.waitForFunction(() => document.body.dataset.step === "name");
     await page.fill("#name", "");

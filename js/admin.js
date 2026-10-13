@@ -2,12 +2,14 @@ import { EVENT, PIN_KEY, movieTitle, peopleLabel } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 
+const PIN_LENGTH = 4;
+
 const pinScreen = $("pin-screen");
 const opening = $("opening");
 const book = $("book");
 const dots = $("pin-dots");
+const entry = $("pin-entry");
 const live = $("pin-live");
-const unlockBtn = $("unlock");
 const pinError = $("pin-error");
 const keypad = $("keypad");
 const projection = $("projection");
@@ -25,18 +27,22 @@ let busy = false;
 
 keypad.addEventListener("click", (event) => {
   const button = event.target.closest("button");
-  if (!button || locked) return;
-  if (button.id === "pin-del") {
-    pin = pin.slice(0, -1);
-  } else if (button.id === "pin-clear") {
-    pin = "";
-  } else if (button.dataset.digit && pin.length < 8) {
-    pin += button.dataset.digit;
-  }
-  renderDots();
+  if (!button || locked || busy) return;
+  if (button.id === "pin-del") pushPin(pin.slice(0, -1));
+  else if (button.id === "pin-clear") pushPin("");
+  else if (button.dataset.digit) pushPin(pin + button.dataset.digit);
 });
 
-unlockBtn.addEventListener("click", () => submitPin());
+entry.addEventListener("paste", (event) => {
+  event.preventDefault();
+  const text = event.clipboardData?.getData("text") ?? "";
+  const digits = text.replace(/\D/g, "");
+  const start = entry.selectionStart ?? pin.length;
+  const end = entry.selectionEnd ?? pin.length;
+  pushPin(pin.slice(0, start) + digits + pin.slice(end));
+});
+entry.addEventListener("input", () => pushPin(entry.value));
+
 $("refresh").addEventListener("click", () => load());
 $("lock").addEventListener("click", () => {
   savedPin = "";
@@ -51,18 +57,13 @@ $("reset").addEventListener("click", resetVotes);
 $("reset-cancel").addEventListener("click", () => armReset(false));
 
 document.addEventListener("keydown", (event) => {
-  if (pinScreen.hidden || locked) return;
+  if (pinScreen.hidden || locked || busy || event.target === entry) return;
   if (/^[0-9]$/.test(event.key)) {
     event.preventDefault();
-    if (pin.length < 8) pin += event.key;
-    renderDots();
+    pushPin(pin + event.key);
   } else if (event.key === "Backspace") {
     event.preventDefault();
-    pin = pin.slice(0, -1);
-    renderDots();
-  } else if (event.key === "Enter" && pin.length >= 4) {
-    event.preventDefault();
-    submitPin();
+    pushPin(pin.slice(0, -1));
   }
 });
 
@@ -86,15 +87,31 @@ function writePin(value) {
   }
 }
 
+function syncEntry() {
+  if (entry && entry.value !== pin) entry.value = pin;
+}
+
+function pushPin(next) {
+  if (locked || busy) return;
+  const cleaned = String(next).replace(/\D/g, "").slice(0, PIN_LENGTH);
+  if (cleaned === pin) {
+    syncEntry();
+    return;
+  }
+  pin = cleaned;
+  renderDots();
+  if (pin.length === PIN_LENGTH) submitPin();
+}
+
 function renderDots() {
   dots.replaceChildren();
-  for (let i = 0; i < Math.max(4, pin.length); i += 1) {
+  for (let i = 0; i < PIN_LENGTH; i += 1) {
     const dot = document.createElement("i");
     if (i < pin.length) dot.className = "on";
     dots.append(dot);
   }
+  syncEntry();
   live.textContent = pin.length ? `${pin.length} digits entered` : "";
-  unlockBtn.disabled = locked || pin.length < 4 || busy;
 }
 
 function setPinError(message) {
@@ -109,10 +126,16 @@ function shake() {
 
 function setKeysDisabled(disabled) {
   locked = disabled;
+  if (entry) entry.disabled = disabled;
   keypad.querySelectorAll("button").forEach((button) => {
     button.disabled = disabled;
   });
   renderDots();
+}
+
+function focusEntry() {
+  if (!entry || locked || pinScreen.hidden) return;
+  entry.focus({ preventScroll: true });
 }
 
 function showPin(problem) {
@@ -122,8 +145,11 @@ function showPin(problem) {
   pinScreen.hidden = false;
   if (!problem) {
     setPinError("");
+    focusEntry();
     return;
   }
+  pin = "";
+  renderDots();
   if (problem.error === "locked") {
     const when = problem.retry_at ? new Date(problem.retry_at) : null;
     const clock =
@@ -148,11 +174,11 @@ function showPin(problem) {
   if (problem.error === "pin") {
     setPinError("That PIN doesn't match.");
     shake();
-    pin = "";
-    renderDots();
+    focusEntry();
     return;
   }
   setPinError("Couldn't open the guest book. Try again in a moment.");
+  focusEntry();
 }
 
 function showBook() {
@@ -176,12 +202,12 @@ async function boot() {
 }
 
 async function submitPin() {
-  if (pin.length < 4 || busy || locked) return;
+  if (pin.length < PIN_LENGTH || busy || locked) return;
   busy = true;
-  unlockBtn.textContent = "Checking…";
   renderDots();
   setPinError("");
   const attempt = pin;
+  entry?.blur();
   try {
     const data = await rpc("movie_admin_overview", { p_pin: attempt });
     if (!data || data.ok === false) {
@@ -200,7 +226,6 @@ async function submitPin() {
     showPin({ error: "network" });
   } finally {
     busy = false;
-    unlockBtn.textContent = "Unlock";
     renderDots();
   }
 }
@@ -289,6 +314,7 @@ function renderBook(data) {
     empty.className = "empty";
     empty.textContent = "No RSVPs yet.";
     list.append(empty);
+    renderPast(data.history);
     return;
   }
 
@@ -383,6 +409,74 @@ function renderBook(data) {
     actions.append(remove, keep);
     article.append(actions);
     list.append(article);
+  });
+  renderPast(data.history);
+}
+
+function formatPastDate(iso) {
+  const [year, month, day] = String(iso || "").slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return "";
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: EVENT.timezone,
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(Date.UTC(year, month - 1, day, 18, 0, 0)));
+}
+
+function renderPast(history) {
+  const head = $("past-head");
+  const root = $("past-nights");
+  const nights = Array.isArray(history) ? history : [];
+  const show = nights.length > 0;
+  head.hidden = !show;
+  root.hidden = !show;
+  root.replaceChildren();
+  if (!show) return;
+
+  nights.forEach((night) => {
+    const votes = night.votes || {};
+    const countA = Number(votes[night.movie_a]) || 0;
+    const countB = Number(votes[night.movie_b]) || 0;
+    const people = Number(night.headcount) || 0;
+
+    const article = document.createElement("article");
+    article.className = "past-night";
+
+    const date = document.createElement("p");
+    date.className = "past-date";
+    date.textContent = formatPastDate(night.event_date);
+
+    const films = document.createElement("p");
+    films.className = "past-films";
+    const titleA = document.createElement("span");
+    titleA.textContent = night.movie_a_title || "";
+    const vs = document.createElement("span");
+    vs.className = "vs";
+    vs.textContent = "vs";
+    const titleB = document.createElement("span");
+    titleB.textContent = night.movie_b_title || "";
+    films.append(titleA, vs, titleB);
+
+    const winner = document.createElement("p");
+    winner.className = "past-winner";
+    const name = document.createElement("b");
+    name.textContent = night.winner_title || "Tie";
+    winner.append(document.createTextNode(night.winner_title ? "Winner " : ""), name);
+
+    const meta = document.createElement("p");
+    meta.className = "past-meta";
+    const count = document.createElement("b");
+    count.textContent = String(people);
+    meta.append(
+      count,
+      document.createTextNode(
+        ` ${people === 1 ? "person" : "people"} · ${night.movie_a_title} ${countA} · ${night.movie_b_title} ${countB}`,
+      ),
+    );
+
+    article.append(date, films, winner, meta);
+    root.append(article);
   });
 }
 

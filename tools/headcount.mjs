@@ -14,7 +14,7 @@ if (shots) fs.mkdirSync(shots, { recursive: true });
 
 // Mirrors supabase/migrations/003_vote_headcount.sql.
 function tally(rows) {
-  const votes = { princess_bride: 0, top_gun: 0 };
+  const votes = { inside_out_2026: 0, wild_robot: 0 };
   let coming = 0;
   let ifPrincess = 0;
   let ifTop = 0;
@@ -25,15 +25,15 @@ function tally(rows) {
       continue;
     }
     coming += row.party_size;
-    if (row.would_attend === "princess_bride" || row.would_attend === "both") ifPrincess += row.party_size;
-    if (row.would_attend === "top_gun" || row.would_attend === "both") ifTop += row.party_size;
-    if (row.vote === "princess_bride" || row.vote === "top_gun") votes[row.vote] += row.party_size;
+    if (row.would_attend === "inside_out_2026" || row.would_attend === "both") ifPrincess += row.party_size;
+    if (row.would_attend === "wild_robot" || row.would_attend === "both") ifTop += row.party_size;
+    if (row.vote === "inside_out_2026" || row.vote === "wild_robot") votes[row.vote] += row.party_size;
   }
   return {
     votes,
     coming,
-    if_princess_bride: ifPrincess,
-    if_top_gun: ifTop,
+    if_inside_out_2026: ifPrincess,
+    if_wild_robot: ifTop,
     none_parties: noneParties,
     rsvps_open: true,
     voting_open: true,
@@ -43,35 +43,35 @@ function tally(rows) {
 
 function forms(rows) {
   return {
-    princess_bride: rows.filter((row) => row.vote === "princess_bride").length,
-    top_gun: rows.filter((row) => row.vote === "top_gun").length,
+    inside_out_2026: rows.filter((row) => row.vote === "inside_out_2026").length,
+    wild_robot: rows.filter((row) => row.vote === "wild_robot").length,
   };
 }
 
 const mixed = [
-  { name: "Westley", party_size: 4, would_attend: "both", vote: "princess_bride" },
-  { name: "Buttercup", party_size: 1, would_attend: "princess_bride", vote: "princess_bride" },
-  { name: "Fezzik", party_size: 2, would_attend: "both", vote: "top_gun" },
-  { name: "Inigo", party_size: 1, would_attend: "top_gun", vote: "top_gun" },
+  { name: "Westley", party_size: 4, would_attend: "both", vote: "inside_out_2026" },
+  { name: "Buttercup", party_size: 1, would_attend: "inside_out_2026", vote: "inside_out_2026" },
+  { name: "Fezzik", party_size: 2, would_attend: "both", vote: "wild_robot" },
+  { name: "Inigo", party_size: 1, would_attend: "wild_robot", vote: "wild_robot" },
   { name: "Vizzini", party_size: 6, would_attend: "none", vote: null },
 ];
 const tied = [
-  { name: "Westley", party_size: 4, would_attend: "both", vote: "princess_bride" },
-  { name: "Buttercup", party_size: 1, would_attend: "princess_bride", vote: "princess_bride" },
-  { name: "Fezzik", party_size: 3, would_attend: "both", vote: "top_gun" },
-  { name: "Inigo", party_size: 2, would_attend: "top_gun", vote: "top_gun" },
+  { name: "Westley", party_size: 4, would_attend: "both", vote: "inside_out_2026" },
+  { name: "Buttercup", party_size: 1, would_attend: "inside_out_2026", vote: "inside_out_2026" },
+  { name: "Fezzik", party_size: 3, would_attend: "both", vote: "wild_robot" },
+  { name: "Inigo", party_size: 2, would_attend: "wild_robot", vote: "wild_robot" },
   { name: "Vizzini", party_size: 8, would_attend: "none", vote: null },
 ];
 
 const mixedTotals = tally(mixed);
 const tiedTotals = tally(tied);
-assert.deepEqual(mixedTotals.votes, { princess_bride: 5, top_gun: 3 });
-assert.deepEqual(forms(mixed), { princess_bride: 2, top_gun: 2 }, "form counts would hide the lead");
+assert.deepEqual(mixedTotals.votes, { inside_out_2026: 5, wild_robot: 3 });
+assert.deepEqual(forms(mixed), { inside_out_2026: 2, wild_robot: 2 }, "form counts would hide the lead");
 assert.equal(mixedTotals.coming, 8);
 assert.equal(mixedTotals.none_parties, 1, "a can't-make-it party adds no people to a movie");
-assert.equal(mixedTotals.if_princess_bride, 7);
-assert.equal(mixedTotals.if_top_gun, 7);
-assert.deepEqual(tiedTotals.votes, { princess_bride: 5, top_gun: 5 });
+assert.equal(mixedTotals.if_inside_out_2026, 7);
+assert.equal(mixedTotals.if_wild_robot, 7);
+assert.deepEqual(tiedTotals.votes, { inside_out_2026: 5, wild_robot: 5 });
 assert.notDeepEqual(tiedTotals.votes, forms(tied));
 console.log("ok tally", mixedTotals.votes, "tie", tiedTotals.votes);
 
@@ -130,15 +130,15 @@ async function guest(browser, totals, now) {
 const browser = await chromium.launch();
 
 {
-  const { context, page } = await guest(browser, mixedTotals, "2026-10-10T21:00:00-05:00");
-  await page.waitForFunction(() => document.getElementById("screen-line").textContent === "The Princess Bride");
+  const { context, page } = await guest(browser, mixedTotals, "2026-10-30T21:00:00-05:00");
+  await page.waitForFunction(() => document.getElementById("screen-line").textContent === "Inside Out");
   assert.match(await page.locator("#screen-kicker").innerText(), /now showing/i);
   console.log("ok leader on the screen");
   await context.close();
 }
 
 {
-  const { context, page } = await guest(browser, tiedTotals, "2026-10-10T21:00:00-05:00");
+  const { context, page } = await guest(browser, tiedTotals, "2026-10-30T21:00:00-05:00");
   await page.waitForFunction(() => document.getElementById("screen-line").textContent === "Movie Night");
   console.log("ok tie on the screen");
   await context.close();
@@ -147,13 +147,13 @@ const browser = await chromium.launch();
 {
   const { context, page } = await guest(browser, mixedTotals);
   await page.waitForFunction(() => document.body.dataset.screen === "card");
-  await page.locator('.poster[data-movie="princess_bride"]').tap();
+  await page.locator('.poster[data-movie="inside_out_2026"]').tap();
   await page.locator('[data-also="yes"]').tap();
   await page.waitForFunction(() => document.body.dataset.step === "name");
   await page.fill("#name", "Westley");
   await page.locator("#name-submit").tap();
   await page.waitForFunction(() => document.body.dataset.step === "confirm");
-  await page.waitForFunction(() => document.querySelector('.bucket[data-movie="princess_bride"] b').textContent === "5");
+  await page.waitForFunction(() => document.querySelector('.bucket[data-movie="inside_out_2026"] b').textContent === "5");
   const tubs = await page.evaluate(() =>
     [...document.querySelectorAll(".bucket")].map((bucket) => ({
       id: bucket.dataset.movie,
@@ -175,8 +175,8 @@ const browser = await chromium.launch();
   assert.equal(shift(tubs[1].corn), 26);
   const label = await page.locator("#votes").getAttribute("aria-label");
   assert.match(label, /People so far/);
-  assert.match(label, /The Princess Bride 5/);
-  assert.match(label, /Top Gun: Maverick 3/);
+  assert.match(label, /Inside Out 5/);
+  assert.match(label, /The Wild Robot 3/);
   assert.equal(await page.locator(".votes-label").innerText(), "PEOPLE SO FAR");
   await page.evaluate(() => {
     const el = document.getElementById("votes");
@@ -196,7 +196,7 @@ const browser = await chromium.launch();
 {
   const { context, page } = await guest(browser, tiedTotals);
   await page.waitForFunction(() => document.body.dataset.screen === "card");
-  await page.locator('.poster[data-movie="top_gun"]').tap();
+  await page.locator('.poster[data-movie="wild_robot"]').tap();
   await page.locator('[data-also="no"]').tap();
   await page.waitForFunction(() => document.body.dataset.step === "name");
   await page.fill("#name", "Inigo");
