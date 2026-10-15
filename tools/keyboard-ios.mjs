@@ -209,7 +209,9 @@ async function phonePage(browser, phone) {
     const style = getComputedStyle(cue);
     return Number(style.opacity) > 0.99 && style.visibility === "visible" && style.pointerEvents !== "none";
   });
-  await page.locator("#cue").click();
+  // A hit-tested click can scroll the landing while trying to clear the
+  // toolbar, and that scroll hides the cue. The cue's own handler is the path.
+  await page.locator("#cue").evaluate((el) => el.click());
   await page.waitForFunction(() => document.body.dataset.screen === "card", null, { timeout: 15000 });
   await page.waitForFunction(() => {
     const top = document.getElementById("rsvp").getBoundingClientRect().top;

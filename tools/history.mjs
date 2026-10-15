@@ -1,5 +1,7 @@
-// Past nights: headcount is the sum of party_size, vote headcount is the
-// sum of party_size per movie, and the winner is whichever side is ahead.
+// Past nights: headcount matches the live "coming" number, the sum of
+// party_size for people who could come. A would_attend of "none" is left
+// out. Vote headcount is still the sum of party_size per movie, and the
+// winner is whichever side is ahead.
 // The booth renders that payload. Nothing calls the live database.
 //
 //   python3 -m http.server 8765
@@ -17,7 +19,7 @@ function archive(event, rows) {
   let behind = 0;
   let headcount = 0;
   for (const row of rows) {
-    headcount += row.party_size;
+    if (row.would_attend !== "none") headcount += row.party_size;
     if (row.vote === event.movie_a) ahead += row.party_size;
     if (row.vote === event.movie_b) behind += row.party_size;
   }
@@ -47,10 +49,11 @@ const oct10 = {
   movie_b_title: "Top Gun: Maverick",
 };
 const oct10Rows = [
-  { party_size: 4, vote: "princess_bride" },
-  { party_size: 1, vote: "princess_bride" },
-  { party_size: 2, vote: "top_gun" },
-  { party_size: 3, vote: null },
+  { party_size: 4, would_attend: "both", vote: "princess_bride" },
+  { party_size: 1, would_attend: "princess_bride", vote: "princess_bride" },
+  { party_size: 2, would_attend: "top_gun", vote: "top_gun" },
+  { party_size: 3, would_attend: "both", vote: null },
+  { party_size: 6, would_attend: "none", vote: null },
 ];
 const older = {
   event_date: "2026-08-01",
@@ -60,14 +63,19 @@ const older = {
   movie_b_title: "Beta",
 };
 const olderRows = [
-  { party_size: 4, vote: "alpha" },
-  { party_size: 4, vote: "beta" },
-  { party_size: 1, vote: null },
+  { party_size: 4, would_attend: "alpha", vote: "alpha" },
+  { party_size: 4, would_attend: "beta", vote: "beta" },
+  { party_size: 1, would_attend: "both", vote: null },
 ];
 
 const won = archive(oct10, oct10Rows);
 const tied = archive(older, olderRows);
 assert.equal(won.headcount, 10);
+assert.equal(
+  oct10Rows.reduce((sum, row) => sum + row.party_size, 0),
+  16,
+  "the can't-make-it party is in the book",
+);
 assert.deepEqual(won.votes, { princess_bride: 5, top_gun: 2 });
 assert.equal(won.winner, "princess_bride");
 assert.equal(won.winner_title, "The Princess Bride");

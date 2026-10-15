@@ -551,7 +551,8 @@ begin
         when e.winner = e.movie_b then e.movie_b_title
         else null
       end as winner_title,
-      coalesce(sum(r.party_size), 0)::integer as headcount,
+      -- Same people as the live "coming" number. Can't-make-it parties stay out.
+      coalesce(sum(r.party_size) filter (where r.would_attend <> 'none'), 0)::integer as headcount,
       jsonb_build_object(
         e.movie_a, coalesce(sum(r.party_size) filter (where r.vote = e.movie_a), 0),
         e.movie_b, coalesce(sum(r.party_size) filter (where r.vote = e.movie_b), 0)
