@@ -36,7 +36,7 @@ await og.evaluate(() => {
   const line = document.getElementById("screen-line");
   line.textContent = "Movie Night";
   line.classList.remove("is-long");
-  document.getElementById("screen-sub").textContent = "Saturday, Oct 10 · After sunset";
+  document.getElementById("screen-sub").textContent = "Friday, Oct 30 · After sunset";
   document.getElementById("beam").style.opacity = "0.3";
 });
 await og.waitForTimeout(400);

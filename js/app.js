@@ -69,6 +69,7 @@ const ERRORS = {
   network: "Couldn't save. Try again.",
 };
 
+const SEE_YOU = `See you ${EVENT.weekday}`;
 const MAP_POINT = `${EVENT.latitude},${EVENT.longitude}`;
 const MAP_APPLE = `https://maps.apple.com/?daddr=${MAP_POINT}&dirflg=d`;
 const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${MAP_POINT}`;
@@ -130,11 +131,12 @@ function clockNow() {
 }
 
 function applyIntro() {
-  if (!isEventDayAfternoon(clockNow(), EVENT)) return;
   const date = document.getElementById("date-label");
-  if (date) date.textContent = "Tonight";
   const rm = document.getElementById("rm-date");
-  if (rm) rm.textContent = "Tonight";
+  const tonight = isEventDayAfternoon(clockNow(), EVENT);
+  if (date) date.textContent = tonight ? "Tonight" : EVENT.dateShort;
+  if (rm) rm.textContent = tonight ? "Tonight" : EVENT.dateShort;
+  if (!tonight) return;
   const where = document.querySelector(".hero .where");
   if (!where) return;
   where.classList.add("is-tonight");
@@ -281,6 +283,26 @@ function bind() {
   });
 
   els.change.addEventListener("click", beginEdit);
+  bindProjector();
+}
+
+// A second tap on the backyard projector opens the booth. One tap does nothing.
+const PROJECTOR_TAP_MS = 400;
+
+function bindProjector() {
+  const el = document.getElementById("projector");
+  if (!el) return;
+  let last = 0;
+  el.addEventListener("pointerup", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const now = event.timeStamp;
+    if (last && now - last < PROJECTOR_TAP_MS) {
+      last = 0;
+      window.location.assign("/admin/");
+      return;
+    }
+    last = now;
+  });
 }
 
 function advanceSoon(step) {
@@ -558,7 +580,7 @@ function cardFor() {
   switch (state.step) {
     case "pick":
       if (state.showing) return ["Now showing", winnerTitle(), ""];
-      if (!state.flags.rsvpsOpen) return [`Sat, Oct 10 · ${time}`, "RSVPs closed", ""];
+      if (!state.flags.rsvpsOpen) return [`${EVENT.dateCompact} · ${time}`, "RSVPs closed", ""];
       if (!state.flags.votingOpen) return ["Movie night", "Coming for?", ""];
       return ["Movie night", "Pick the movie", "Most votes wins"];
     case "other": {
@@ -575,8 +597,8 @@ function cardFor() {
       if (!r) return ["", "", ""];
       if (r.would_attend === "none") return ["", "We'll see you next time!", ""];
       const title = movieTitle(r.vote || r.would_attend);
-      if (r.would_attend !== "both") return ["", "See you Saturday", `if ${title} wins`];
-      return ["", "See you Saturday", ""];
+      if (r.would_attend !== "both") return ["", SEE_YOU, `if ${title} wins`];
+      return ["", SEE_YOU, ""];
     }
     default:
       return ["", "", ""];
@@ -594,15 +616,15 @@ function paintScreen() {
     els.kicker.textContent = kicker;
     els.line.textContent = line;
     els.line.classList.toggle("is-long", line.length > 14);
-    els.card.classList.toggle("is-saturday", line === "See you Saturday");
+    els.card.classList.toggle("is-friday", line === SEE_YOU);
     els.sub.textContent = sub;
     els.card.classList.remove("is-swapping");
   };
   window.clearTimeout(swapTimer);
-  // Saturday copy swaps in place. A fade would hold the previous line
+  // The see-you line swaps in place. A fade would hold the previous line
   // ("Your vote", the title, or "if … wins") over the new one.
-  const saturday = prevLine === "See you Saturday" || line === "See you Saturday";
-  if (first || reduced || saturday || document.body.dataset.screen !== "card") {
+  const seeYou = prevLine === SEE_YOU || line === SEE_YOU;
+  if (first || reduced || seeYou || document.body.dataset.screen !== "card") {
     apply();
     return;
   }
@@ -646,9 +668,9 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
   els.confirmTitle.textContent = !coming
     ? "We'll see you next time!"
     : definite
-      ? "See you Saturday."
-      : `See you Saturday if ${title} wins.`;
-  // Saturday is on the screen for anyone coming. The heading stays for
+      ? `${SEE_YOU}.`
+      : `${SEE_YOU} if ${title} wins.`;
+  // The weekday is on the screen for anyone coming. The heading stays for
   // assistive tech, because the screen itself is hidden from it.
   els.confirmTitle.classList.add("sr-only");
   els.confirmTitle.closest(".step").classList.toggle("is-coming", coming);

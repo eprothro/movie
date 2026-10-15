@@ -605,18 +605,18 @@ a {
 
 /* Both coming confirmations share one centered line. The conditional
    "if … wins" hangs under it, so the headline does not shift. */
-.card.is-saturday {
+.card.is-friday {
   padding: 0 calc(2.6 * var(--s));
 }
 
-.card.is-saturday .card-line {
+.card.is-friday .card-line {
   font-size: calc(6.6 * var(--s));
   line-height: 1.02;
   white-space: nowrap;
   overflow-wrap: normal;
 }
 
-.card.is-saturday .card-sub:not(:empty) {
+.card.is-friday .card-sub:not(:empty) {
   position: absolute;
   left: calc(2.6 * var(--s));
   right: calc(2.6 * var(--s));
@@ -820,6 +820,24 @@ a {
   height: calc(11 * var(--s));
   left: calc(50% - 8 * var(--s));
   top: calc(var(--hy) + 24 * var(--s));
+  z-index: 2;
+  pointer-events: auto;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  cursor: default;
+}
+
+.projector,
+.projector * {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.projector svg {
+  pointer-events: none;
 }
 
 .projector .lens {
@@ -888,6 +906,8 @@ a {
 .page {
   position: relative;
   z-index: 1;
+  /* The hero's empty middle is the projector. Let that tap through. */
+  pointer-events: none;
 }
 
 .hero {
@@ -899,6 +919,15 @@ a {
   padding: calc(var(--safe-t) + 5.5svh) 20px calc(var(--safe-b) + 24px);
   text-align: center;
   will-change: opacity;
+  pointer-events: none;
+}
+
+.hero-head,
+.hero-foot,
+.stage,
+.panel,
+.skip {
+  pointer-events: auto;
 }
 
 .hero-head {
@@ -1063,7 +1092,7 @@ h1 em {
   transform: scale(0.97);
 }
 
-/* On a short phone the movie screen sits higher. Lift the Saturday intro so the
+/* On a short phone the movie screen sits higher. Lift the Friday intro so the
    countdown keeps its gap under the pill and still clears the screen. */
 @media (max-height: 740px) {
   .hero {
@@ -1830,7 +1859,7 @@ input[type="text"].is-shaking {
   outline: none;
 }
 
-/* Coming guests read Saturday on the screen, so the heading is gone.
+/* Coming guests read Friday on the screen, so the heading is gone.
    Keep the standings where that line sat, for both confirmations. */
 .step[data-step="confirm"].is-coming .votes {
   margin-top: 18px;
