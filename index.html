@@ -278,8 +278,32 @@
               <div class="route" data-route>
                 <a class="route-go" data-dir href="https://www.google.com/maps/dir/?api=1&amp;destination=32.15498,-95.36768" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18s6-5.6 6-10a6 6 0 1 0-12 0c0 4.4 6 10 6 10zm0-7.6a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z" fill="currentColor" fill-rule="evenodd"/></svg>Directions</a>
               </div>
-              <button type="button" class="text-btn" id="change">Change RSVP</button>
+              <div class="confirm-actions">
+                <button type="button" class="text-btn" id="split" hidden>Split our vote</button>
+                <button type="button" class="text-btn" id="change">Change RSVP</button>
+              </div>
             </div>
+          </div>
+
+          <div class="step" data-step="split">
+            <div class="step-head"><button type="button" class="back" data-back aria-label="Back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
+            <h2 class="sr-only" tabindex="-1" id="split-title">How many of us?</h2>
+            <p class="split-rest" id="split-rest"></p>
+            <div class="split-count">
+              <span class="field-label" id="split-label">How many of us?</span>
+              <div class="stepper" role="group" aria-labelledby="split-label">
+                <button type="button" id="split-dec" aria-label="Fewer of us">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                </button>
+                <output id="split-value" aria-live="polite">1</output>
+                <button type="button" id="split-inc" aria-label="More of us">
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+            </div>
+            <p class="error" id="split-error" role="alert" hidden></p>
+            <button type="button" class="btn btn-primary btn-xl" id="split-submit">That's us</button>
+            <button type="button" class="text-btn" id="split-clear" hidden>Vote together</button>
           </div>
 
         </div>
