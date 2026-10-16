@@ -267,12 +267,28 @@ function applyFlags(rsvpsOpen, votingOpen) {
   $("vote-switch-label").textContent = votingOpen ? "Open" : "Closed";
 }
 
+function splitOf(row) {
+  const count = Number(row?.vote_b_count) || 0;
+  if (!row || !row.vote_b || count < 1 || row.would_attend === "none") return null;
+  const rest = Number(row.party_size) - count;
+  if (rest < 1) return null;
+  return { rest, count };
+}
+
 function attendLine(row) {
+  const split = splitOf(row);
+  if (split) return `${split.rest} for ${movieTitle(row.vote)} · ${split.count} for ${movieTitle(row.vote_b)}`;
   if (row.would_attend === "none") return "Can't make it";
   if (row.would_attend === "both") {
     return row.vote ? `Either · voted ${movieTitle(row.vote)}` : "Either";
   }
   return `${movieTitle(row.would_attend)} only`;
+}
+
+function partyCount(row) {
+  const split = splitOf(row);
+  if (split) return `${split.rest} + ${split.count}`;
+  return peopleLabel(row.party_size);
 }
 
 function renderBook(data) {
@@ -337,7 +353,7 @@ function renderBook(data) {
     if (row.would_attend !== "none") {
       const count = document.createElement("p");
       count.className = "count";
-      count.textContent = peopleLabel(row.party_size);
+      count.textContent = partyCount(row);
       top.append(count);
     }
 

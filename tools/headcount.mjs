@@ -12,7 +12,16 @@ const base = process.env.RSVP_BASE || "http://127.0.0.1:8765/";
 const shots = process.env.RSVP_SHOTS || "";
 if (shots) fs.mkdirSync(shots, { recursive: true });
 
-// Mirrors supabase/migrations/003_vote_headcount.sql.
+// Mirrors movie_private.standings() after split_votes.sql.
+// A split divides the vote only. coming and the if-totals stay the whole party.
+function voteShare(row, movie) {
+  const extra = Number(row.vote_b_count) || 0;
+  let n = 0;
+  if (row.vote === movie) n += row.party_size - extra;
+  if (row.vote_b === movie) n += extra;
+  return n;
+}
+
 function tally(rows) {
   const votes = { inside_out_2026: 0, wild_robot: 0 };
   let coming = 0;
@@ -27,7 +36,8 @@ function tally(rows) {
     coming += row.party_size;
     if (row.would_attend === "inside_out_2026" || row.would_attend === "both") ifPrincess += row.party_size;
     if (row.would_attend === "wild_robot" || row.would_attend === "both") ifTop += row.party_size;
-    if (row.vote === "inside_out_2026" || row.vote === "wild_robot") votes[row.vote] += row.party_size;
+    votes.inside_out_2026 += voteShare(row, "inside_out_2026");
+    votes.wild_robot += voteShare(row, "wild_robot");
   }
   return {
     votes,
@@ -73,7 +83,22 @@ assert.equal(mixedTotals.if_inside_out_2026, 7);
 assert.equal(mixedTotals.if_wild_robot, 7);
 assert.deepEqual(tiedTotals.votes, { inside_out_2026: 5, wild_robot: 5 });
 assert.notDeepEqual(tiedTotals.votes, forms(tied));
-console.log("ok tally", mixedTotals.votes, "tie", tiedTotals.votes);
+const split = [
+  { name: "Westley", party_size: 4, would_attend: "both", vote: "inside_out_2026", vote_b: "wild_robot", vote_b_count: 2 },
+  { name: "Vizzini", party_size: 6, would_attend: "none", vote: null },
+];
+const splitTotals = tally(split);
+assert.equal(splitTotals.coming, 4, "a 2/2 split is still 4 people coming");
+assert.deepEqual(splitTotals.votes, { inside_out_2026: 2, wild_robot: 2 });
+assert.equal(
+  splitTotals.votes.inside_out_2026 + splitTotals.votes.wild_robot,
+  splitTotals.coming,
+  "vote shares must not add a second copy of the party",
+);
+assert.equal(splitTotals.if_inside_out_2026, 4);
+assert.equal(splitTotals.if_wild_robot, 4);
+assert.equal(splitTotals.none_parties, 1);
+console.log("ok tally", mixedTotals.votes, "tie", tiedTotals.votes, "split", splitTotals.votes);
 
 function standingsBody(totals, rsvp) {
   const standings = {
