@@ -1,45 +1,57 @@
--- A party can split its vote without being counted twice.
+-- Pass the phone. One tap is one person's vote.
 -- Run this whole file in the Supabase SQL editor, after history.sql.
 -- It is safe to re-run. It does not update or delete any RSVP.
--- Existing rows stay a single vote: vote_b and vote_b_count stay null.
+-- Existing rows stay one vote: extra_votes stays null, and the whole
+-- party still counts toward vote.
 --
--- Attendance stays a fact about the whole party (would_attend).
--- coming and the "if this movie wins" totals are unchanged.
--- Only the vote tally is divided: party_size - vote_b_count on vote,
--- and vote_b_count on vote_b. A party of 4 split 2/2 is still 4 coming.
+-- No new tables. New public tables need explicit grants as of Oct 30;
+-- this file only adds a column and functions.
+--
+-- The person who sent the RSVP already voted. That movie is vote.
+-- extra_votes is every later tap, in order, at most party_size - 1 of them.
+-- Anyone who has not tapped yet still counts toward vote:
+--   unvoted = party_size - 1 - cardinality(extra_votes)
+--   share(movie) = (movie = vote ? 1 + unvoted : 0)
+--                + how many times movie appears in extra_votes
+-- A party of 4, vote A, extra_votes {B, B} is A = 2, B = 2.
+-- The shares sum to party_size. coming and would_attend do not change.
+--
+-- The draft split columns were never applied. Drop them if a checkout
+-- of that draft created them, so this file is the only vote-split model.
 
-alter table public.movie_rsvps
-  add column if not exists vote_b text,
-  add column if not exists vote_b_count integer;
-
-comment on column public.movie_rsvps.vote_b is
-  'The other movie, when the party splits its vote. Null means one vote for the whole party.';
-comment on column public.movie_rsvps.vote_b_count is
-  'How many people in the party vote for vote_b. The rest vote for vote. Null when the party is not split.';
+drop function if exists public.movie_split_vote(text, integer);
+drop function if exists movie_private.votes_for(text, integer, text, text, integer);
 
 alter table public.movie_rsvps drop constraint if exists movie_rsvps_split_chk;
+alter table public.movie_rsvps drop column if exists vote_b_count;
+alter table public.movie_rsvps drop column if exists vote_b;
+
 alter table public.movie_rsvps
-  add constraint movie_rsvps_split_chk
+  add column if not exists extra_votes text[];
+
+comment on column public.movie_rsvps.extra_votes is
+  'Later votes, in the order the phone was passed. Null means the whole party counts toward vote.';
+
+alter table public.movie_rsvps drop constraint if exists movie_rsvps_extra_votes_chk;
+alter table public.movie_rsvps
+  add constraint movie_rsvps_extra_votes_chk
   check (
-    (vote_b is null and vote_b_count is null)
+    extra_votes is null
     or (
-      vote_b is not null
+      cardinality(extra_votes) between 1 and party_size - 1
       and vote is not null
-      and vote_b <> vote
-      and vote_b in ('princess_bride', 'top_gun', 'inside_out_2026', 'wild_robot')
-      and vote_b_count between 1 and party_size - 1
       and would_attend <> 'none'
+      and extra_votes <@ array['princess_bride', 'top_gun', 'inside_out_2026', 'wild_robot']::text[]
     )
   );
 
--- One movie's share of a party. Unsplit rows (vote_b_count null) contribute
--- the whole party_size to vote, which is the old rule.
+-- One movie's share of a party. Null extra_votes contributes the whole
+-- party_size to vote, which is the old rule.
 create or replace function movie_private.votes_for(
   p_movie text,
   p_party integer,
   p_vote text,
-  p_vote_b text,
-  p_vote_b_count integer
+  p_extra text[]
 )
 returns integer
 language sql
@@ -47,13 +59,22 @@ immutable
 set search_path = public, pg_catalog
 as $$
   select case
-    when p_vote = p_movie then p_party - coalesce(p_vote_b_count, 0)
-    when p_vote_b = p_movie then coalesce(p_vote_b_count, 0)
-    else 0
+    when p_vote is null or p_party is null then 0
+    else
+      (case
+        when p_vote = p_movie
+          then 1 + greatest(p_party - 1 - coalesce(cardinality(p_extra), 0), 0)
+        else 0
+      end)
+      + coalesce((
+        select count(*)::integer
+        from unnest(coalesce(p_extra, array[]::text[])) as tapped(movie)
+        where tapped.movie = p_movie
+      ), 0)
   end;
 $$;
 
-revoke all on function movie_private.votes_for(text, integer, text, text, integer)
+revoke all on function movie_private.votes_for(text, integer, text, text[])
   from public, anon, authenticated;
 
 create or replace function movie_private.standings()
@@ -103,9 +124,9 @@ begin
     coalesce(sum(party_size) filter (where would_attend in (v_a, 'both')), 0),
     coalesce(sum(party_size) filter (where would_attend in (v_b, 'both')), 0),
     coalesce(count(*) filter (where would_attend = 'none'), 0),
-    coalesce(sum(movie_private.votes_for(v_a, party_size, vote, vote_b, vote_b_count))
+    coalesce(sum(movie_private.votes_for(v_a, party_size, vote, extra_votes))
       filter (where would_attend <> 'none'), 0),
-    coalesce(sum(movie_private.votes_for(v_b, party_size, vote, vote_b, vote_b_count))
+    coalesce(sum(movie_private.votes_for(v_b, party_size, vote, extra_votes))
       filter (where would_attend <> 'none'), 0)
   into v_coming, v_if_a, v_if_b, v_none, v_vote_a, v_vote_b
   from public.movie_rsvps
@@ -152,16 +173,15 @@ begin
       'party_size', v_row.party_size,
       'would_attend', v_row.would_attend,
       'vote', v_row.vote,
-      'vote_b', v_row.vote_b,
-      'vote_b_count', v_row.vote_b_count,
+      'extra_votes', v_row.extra_votes,
       'note', v_row.note
     )
   );
 end;
 $$;
 
--- A normal save is still one vote. Updating clears any split, so Change RSVP
--- returns the party to a single movie. New rows leave the new columns null.
+-- A normal save is still one vote for the whole party. Updating clears
+-- any pass-along votes, so Change RSVP starts the phone over.
 create or replace function public.movie_submit_rsvp(
   p_name text,
   p_party_size integer,
@@ -212,8 +232,7 @@ begin
         'party_size', 1,
         'would_attend', coalesce(v_movie_a, 'inside_out_2026'),
         'vote', coalesce(v_movie_a, 'inside_out_2026'),
-        'vote_b', null,
-        'vote_b_count', null,
+        'extra_votes', null,
         'note', null
       ),
       'standings', movie_private.guest_standings()
@@ -293,8 +312,7 @@ begin
           party_size = p_party_size,
           would_attend = v_attend,
           vote = v_vote,
-          vote_b = null,
-          vote_b_count = null,
+          extra_votes = null,
           note = v_note,
           updated_at = now()
     where id = v_id
@@ -306,8 +324,7 @@ begin
     'party_size', p_party_size,
     'would_attend', v_attend,
     'vote', v_vote,
-    'vote_b', null,
-    'vote_b_count', null,
+    'extra_votes', null,
     'note', v_note
   );
   v_standings := movie_private.guest_standings();
@@ -321,9 +338,9 @@ begin
 end;
 $$;
 
--- p_count null (or 0) puts the party back on one movie.
--- Otherwise p_count is how many of us want the other movie, from 1 to party size - 1.
-create or replace function public.movie_split_vote(p_token text, p_count integer)
+-- p_vote null takes back the last pass-along vote.
+-- Any other value appends one person's vote, and only one.
+create or replace function public.movie_pass_vote(p_token text, p_vote text)
 returns jsonb
 language plpgsql
 security definer
@@ -336,10 +353,11 @@ declare
   v_b text;
   v_rsvps boolean;
   v_voting boolean;
-  v_vote_b text;
-  v_count integer;
+  v_movie text;
+  v_extra text[];
+  v_len integer;
 begin
-  if not movie_private.allow_rate('split', 40, 900) then
+  if not movie_private.allow_rate('pass', 80, 900) then
     return jsonb_build_object('ok', false, 'error', 'rate');
   end if;
 
@@ -351,7 +369,8 @@ begin
   select * into v_row
   from public.movie_rsvps
   where token_hash = movie_private.token_hash(v_token)
-    and event_id = movie_private.current_event_id();
+    and event_id = movie_private.current_event_id()
+  for update;
 
   if not found then
     return jsonb_build_object('ok', false, 'error', 'not_found');
@@ -381,19 +400,29 @@ begin
     return jsonb_build_object('ok', false, 'error', 'vote');
   end if;
 
-  if p_count is null or p_count = 0 then
-    v_vote_b := null;
-    v_count := null;
-  elsif p_count < 1 or p_count > v_row.party_size - 1 then
-    return jsonb_build_object('ok', false, 'error', 'vote');
+  v_len := coalesce(cardinality(v_row.extra_votes), 0);
+  v_movie := nullif(lower(btrim(coalesce(p_vote, ''))), '');
+
+  if v_movie is null then
+    if v_len = 0 then
+      v_extra := null;
+    elsif v_len = 1 then
+      v_extra := null;
+    else
+      v_extra := v_row.extra_votes[1:v_len - 1];
+    end if;
   else
-    v_vote_b := case when v_row.vote = v_a then v_b else v_a end;
-    v_count := p_count;
+    if v_movie not in (v_a, v_b) then
+      return jsonb_build_object('ok', false, 'error', 'vote');
+    end if;
+    if v_len >= v_row.party_size - 1 then
+      return jsonb_build_object('ok', false, 'error', 'vote');
+    end if;
+    v_extra := array_append(coalesce(v_row.extra_votes, array[]::text[]), v_movie);
   end if;
 
   update public.movie_rsvps
-    set vote_b = v_vote_b,
-        vote_b_count = v_count,
+    set extra_votes = v_extra,
         updated_at = now()
   where id = v_row.id;
 
@@ -404,8 +433,7 @@ begin
       'party_size', v_row.party_size,
       'would_attend', v_row.would_attend,
       'vote', v_row.vote,
-      'vote_b', v_vote_b,
-      'vote_b_count', v_count,
+      'extra_votes', v_extra,
       'note', v_row.note
     ),
     'standings', movie_private.guest_standings()
@@ -435,7 +463,7 @@ begin
   select coalesce(jsonb_agg(to_jsonb(s) order by s.created_at desc), '[]'::jsonb)
     into v_rows
   from (
-    select id, name, party_size, would_attend, vote, vote_b, vote_b_count, note, created_at, updated_at
+    select id, name, party_size, would_attend, vote, extra_votes, note, created_at, updated_at
     from public.movie_rsvps
     where event_id = v_event
   ) s;
@@ -459,9 +487,9 @@ begin
       -- Same people as the live "coming" number. Can't-make-it parties stay out.
       coalesce(sum(r.party_size) filter (where r.would_attend <> 'none'), 0)::integer as headcount,
       jsonb_build_object(
-        e.movie_a, coalesce(sum(movie_private.votes_for(e.movie_a, r.party_size, r.vote, r.vote_b, r.vote_b_count))
+        e.movie_a, coalesce(sum(movie_private.votes_for(e.movie_a, r.party_size, r.vote, r.extra_votes))
           filter (where r.would_attend <> 'none'), 0),
-        e.movie_b, coalesce(sum(movie_private.votes_for(e.movie_b, r.party_size, r.vote, r.vote_b, r.vote_b_count))
+        e.movie_b, coalesce(sum(movie_private.votes_for(e.movie_b, r.party_size, r.vote, r.extra_votes))
           filter (where r.would_attend <> 'none'), 0)
       ) as votes
     from public.movie_events e
@@ -475,10 +503,10 @@ begin
 end;
 $$;
 
-revoke all on function public.movie_split_vote(text, integer) from public;
-grant execute on function public.movie_split_vote(text, integer) to anon, authenticated;
+revoke all on function public.movie_pass_vote(text, text) from public;
+grant execute on function public.movie_pass_vote(text, text) to anon, authenticated;
 
-comment on function public.movie_split_vote(text, integer) is
-  'Divide an existing party''s vote. Does not change how many people are coming. Null count restores one vote.';
+comment on function public.movie_pass_vote(text, text) is
+  'Append one pass-along vote, or undo the last one when p_vote is null. Does not change how many people are coming.';
 
 notify pgrst, 'reload schema';

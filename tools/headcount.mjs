@@ -12,13 +12,15 @@ const base = process.env.RSVP_BASE || "http://127.0.0.1:8765/";
 const shots = process.env.RSVP_SHOTS || "";
 if (shots) fs.mkdirSync(shots, { recursive: true });
 
-// Mirrors movie_private.standings() after split_votes.sql.
-// A split divides the vote only. coming and the if-totals stay the whole party.
+// Mirrors movie_private.votes_for. The RSVP vote is person one. Each extra
+// tap is one more person. Anyone who has not tapped yet still counts toward
+// the RSVP vote, so the shares sum to party_size.
 function voteShare(row, movie) {
-  const extra = Number(row.vote_b_count) || 0;
-  let n = 0;
-  if (row.vote === movie) n += row.party_size - extra;
-  if (row.vote_b === movie) n += extra;
+  if (!row.vote) return 0;
+  const extras = Array.isArray(row.extra_votes) ? row.extra_votes : [];
+  const unvoted = Math.max(0, row.party_size - 1 - extras.length);
+  let n = row.vote === movie ? 1 + unvoted : 0;
+  for (const id of extras) if (id === movie) n += 1;
   return n;
 }
 
@@ -83,22 +85,29 @@ assert.equal(mixedTotals.if_inside_out_2026, 7);
 assert.equal(mixedTotals.if_wild_robot, 7);
 assert.deepEqual(tiedTotals.votes, { inside_out_2026: 5, wild_robot: 5 });
 assert.notDeepEqual(tiedTotals.votes, forms(tied));
-const split = [
-  { name: "Westley", party_size: 4, would_attend: "both", vote: "inside_out_2026", vote_b: "wild_robot", vote_b_count: 2 },
+// Party of 4, votes A, B, B. A is the RSVP plus the one person who has not
+// tapped yet. B is the two pass-along taps. Still 4 coming, not 8.
+const passed = [
+  { name: "Westley", party_size: 4, would_attend: "both", vote: "inside_out_2026", extra_votes: ["wild_robot", "wild_robot"] },
   { name: "Vizzini", party_size: 6, would_attend: "none", vote: null },
 ];
-const splitTotals = tally(split);
-assert.equal(splitTotals.coming, 4, "a 2/2 split is still 4 people coming");
-assert.deepEqual(splitTotals.votes, { inside_out_2026: 2, wild_robot: 2 });
+const passedTotals = tally(passed);
+assert.equal(passedTotals.coming, 4, "two pass-along votes are still 4 people coming");
+assert.deepEqual(passedTotals.votes, { inside_out_2026: 2, wild_robot: 2 });
 assert.equal(
-  splitTotals.votes.inside_out_2026 + splitTotals.votes.wild_robot,
-  splitTotals.coming,
+  passedTotals.votes.inside_out_2026 + passedTotals.votes.wild_robot,
+  passedTotals.coming,
   "vote shares must not add a second copy of the party",
 );
-assert.equal(splitTotals.if_inside_out_2026, 4);
-assert.equal(splitTotals.if_wild_robot, 4);
-assert.equal(splitTotals.none_parties, 1);
-console.log("ok tally", mixedTotals.votes, "tie", tiedTotals.votes, "split", splitTotals.votes);
+assert.equal(passedTotals.if_inside_out_2026, 4);
+assert.equal(passedTotals.if_wild_robot, 4);
+assert.equal(passedTotals.none_parties, 1);
+const echoed = tally([
+  { party_size: 4, would_attend: "both", vote: "inside_out_2026", extra_votes: ["inside_out_2026", "wild_robot"] },
+]);
+assert.deepEqual(echoed.votes, { inside_out_2026: 3, wild_robot: 1 });
+assert.equal(echoed.votes.inside_out_2026 + echoed.votes.wild_robot, echoed.coming);
+console.log("ok tally", mixedTotals.votes, "tie", tiedTotals.votes, "pass", passedTotals.votes);
 
 function standingsBody(totals, rsvp) {
   const standings = {

@@ -35,17 +35,11 @@ const els = {
   confirmTitle: $("confirm-title"),
   confirmSub: $("confirm-sub"),
   votes: $("votes"),
-  split: $("split"),
+  pass: $("pass"),
+  passPosters: $("pass-posters"),
+  passError: $("pass-error"),
+  undo: $("undo"),
   change: $("change"),
-  splitTitle: $("split-title"),
-  splitRest: $("split-rest"),
-  splitLabel: $("split-label"),
-  splitValue: $("split-value"),
-  splitDec: $("split-dec"),
-  splitInc: $("split-inc"),
-  splitError: $("split-error"),
-  splitSubmit: $("split-submit"),
-  splitClear: $("split-clear"),
   card: $("screen-card"),
   kicker: $("screen-kicker"),
   line: $("screen-line"),
@@ -63,7 +57,6 @@ const state = {
   flags: { rsvpsOpen: true, votingOpen: true },
   editing: false,
   saving: false,
-  splitCount: 1,
   standings: null,
   showtime: null,
   showing: false,
@@ -86,7 +79,7 @@ const MAP_APPLE = `https://maps.apple.com/?daddr=${MAP_POINT}&dirflg=d`;
 const MAP_GOOGLE = `https://www.google.com/maps/dir/?api=1&destination=${MAP_POINT}`;
 const MAP_GEO = `geo:0,0?q=${MAP_POINT}(Prothro%20Movie%20Night)`;
 const CHAIR_COLORS = ["#ffcf7d", "#ff9f8a", "#8fc4ff", "#9ee0a0", "#d4a6ff", "#ffe08a"];
-const FIT_STEPS = new Set(["other", "name", "cant", "split"]);
+const FIT_STEPS = new Set(["other", "name", "cant", "pass"]);
 let advanceTimer = 0;
 let swapTimer = 0;
 let lastCard = "";
@@ -268,10 +261,7 @@ function bind() {
 
   els.partyDec.addEventListener("click", () => setParty(state.partySize - 1));
   els.partyInc.addEventListener("click", () => setParty(state.partySize + 1));
-  els.splitDec.addEventListener("click", () => setSplit(state.splitCount - 1));
-  els.splitInc.addEventListener("click", () => setSplit(state.splitCount + 1));
-  els.splitSubmit.addEventListener("click", () => saveSplit(state.splitCount));
-  els.splitClear.addEventListener("click", () => saveSplit(null));
+  els.passPosters.addEventListener("click", onPassPoster);
 
   els.name.addEventListener("input", () => clearError(els.name, els.nameError));
   els.cantName.addEventListener("input", () => clearError(els.cantName, els.cantError));
@@ -299,7 +289,8 @@ function bind() {
     submitCant();
   });
 
-  els.split.addEventListener("click", beginSplit);
+  els.pass.addEventListener("click", beginPass);
+  els.undo.addEventListener("click", undoPass);
   els.change.addEventListener("click", beginEdit);
   bindProjector();
 }
@@ -329,7 +320,7 @@ function advanceSoon(step) {
 }
 
 function goBack() {
-  const back = { other: "pick", name: "other", cant: "pick", split: "confirm" }[state.step];
+  const back = { other: "pick", name: "other", cant: "pick", pass: "confirm" }[state.step];
   if (back) setStep(back, { back: true });
 }
 
@@ -358,7 +349,11 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
       : "Who's coming?";
   }
   if (step === "cant") els.cantSubmit.textContent = state.rsvp ? "Update" : "Send";
-  if (step === "split") paintSplit();
+  if (step === "pass") {
+    els.passPosters.querySelectorAll(".poster").forEach((poster) => poster.classList.remove("is-chosen"));
+    els.passError.hidden = true;
+    els.passError.textContent = "";
+  }
 
   fitStage();
   paintScreen();
@@ -377,15 +372,15 @@ function setStep(step, { focus = true, scroll = true, back = false } = {}) {
 // gap above it shrinks until the button ends above Safari's toolbar.
 function fitStage() {
   const active = els.steps.find((el) => el.dataset.step === state.step);
-  // A party that can split has one more control. Lift that confirmation the
-  // same way as the name form so both actions clear a short phone. A solo
-  // confirmation keeps the original gap.
-  const splitShown = state.step === "confirm" && !els.split.hidden;
-  const fit = Boolean(active) && (FIT_STEPS.has(state.step) || splitShown);
+  // Passing the phone adds a control, and sometimes an undo. Lift that
+  // confirmation the same way as the name form so both actions clear a short
+  // phone. A solo confirmation keeps the original gap.
+  const passShown = state.step === "confirm" && (!els.pass.hidden || !els.undo.hidden);
+  const fit = Boolean(active) && (FIT_STEPS.has(state.step) || passShown);
   els.stage.classList.toggle("is-fit", fit);
-  // The split action sits on the last row. A few extra pixels keep it above
+  // The pass action sits on the last row, under the tally. Keep it above
   // the home indicator on a 667pt phone.
-  const slack = splitShown ? 16 : 0;
+  const slack = passShown ? 16 : 0;
   if (fit) els.stage.style.setProperty("--step-h", `${active.offsetHeight + slack}px`);
   else els.stage.style.removeProperty("--step-h");
 }
@@ -619,8 +614,8 @@ function cardFor() {
         : ["", "Who's coming?", ""];
     case "cant":
       return ["", "We'll see you next time!", ""];
-    case "split":
-      return ["", movieTitle(otherMovie(r?.vote)), "How many of us?"];
+    case "pass":
+      return ["", "Your turn!", "Tap your movie"];
     case "confirm": {
       if (!r) return ["", "", ""];
       if (r.would_attend === "none") return ["", "We'll see you next time!", ""];
@@ -686,28 +681,52 @@ function popcorn() {
 
 /* Confirm */
 
-function splitOf(rsvp) {
-  const count = Number(rsvp?.vote_b_count) || 0;
-  if (!rsvp || !rsvp.vote_b || count < 1 || rsvp.would_attend === "none") return null;
-  const rest = Number(rsvp.party_size) - count;
-  if (rest < 1) return null;
-  return { rest, count, vote: rsvp.vote, voteB: rsvp.vote_b };
+// The RSVP vote is the first person's. Each later tap is one more person.
+// Anyone who has not tapped yet still counts toward that first movie, so the
+// shares always add up to the party.
+function extraVotes(rsvp) {
+  return Array.isArray(rsvp?.extra_votes) ? rsvp.extra_votes.filter(Boolean) : [];
 }
 
-function splitSentence(rsvp) {
-  const split = splitOf(rsvp);
-  if (!split) return "";
-  return `${split.rest} for ${movieTitle(split.vote)}, ${split.count} for ${movieTitle(split.voteB)}`;
+function shares(rsvp) {
+  const party = Number(rsvp?.party_size) || 0;
+  const extras = extraVotes(rsvp);
+  const unvoted = Math.max(0, party - 1 - extras.length);
+  const counts = Object.fromEntries(EVENT.movies.map((movie) => [movie.id, 0]));
+  if (rsvp?.vote) counts[rsvp.vote] = (counts[rsvp.vote] || 0) + 1 + unvoted;
+  for (const id of extras) counts[id] = (counts[id] || 0) + 1;
+  return counts;
 }
 
-function canSplit(rsvp) {
+function tallyLine(rsvp) {
+  const extras = extraVotes(rsvp);
+  if (!rsvp || !extras.length || rsvp.would_attend === "none") return "";
+  const party = Number(rsvp.party_size) || 0;
+  const voted = Math.min(party, 1 + extras.length);
+  if (voted >= party) return `All ${party} of us voted`;
+  return `${voted} of ${party} of us voted`;
+}
+
+function canPass(rsvp) {
+  const party = Number(rsvp?.party_size) || 0;
   return Boolean(
     rsvp
     && state.flags.rsvpsOpen
     && state.flags.votingOpen
     && rsvp.would_attend !== "none"
-    && Number(rsvp.party_size) >= 2
-    && EVENT.movies.some((movie) => movie.id === rsvp.vote),
+    && party >= 2
+    && EVENT.movies.some((movie) => movie.id === rsvp.vote)
+    && extraVotes(rsvp).length < party - 1,
+  );
+}
+
+function canUndo(rsvp) {
+  return Boolean(
+    rsvp
+    && state.flags.rsvpsOpen
+    && state.flags.votingOpen
+    && rsvp.would_attend !== "none"
+    && extraVotes(rsvp).length > 0,
   );
 }
 
@@ -727,68 +746,51 @@ function showConfirm(rsvp, { celebrate = false, focus = true, scroll = true } = 
   // assistive tech, because the screen itself is hidden from it.
   els.confirmTitle.classList.add("sr-only");
   els.confirmTitle.closest(".step").classList.toggle("is-coming", coming);
-  els.confirmSub.textContent = splitSentence(rsvp);
-  els.split.hidden = !canSplit(rsvp);
+  els.confirmSub.textContent = tallyLine(rsvp);
+  els.pass.hidden = !canPass(rsvp);
+  els.undo.hidden = !canUndo(rsvp);
   els.change.hidden = !state.flags.rsvpsOpen;
   setStep("confirm", { focus, scroll });
   renderVotes();
-  if (celebrate && definite && !splitOf(rsvp)) window.setTimeout(popcorn, 200);
+  if (celebrate && definite && !extraVotes(rsvp).length) window.setTimeout(popcorn, 200);
 }
 
-function beginSplit() {
-  const rsvp = state.rsvp;
-  if (!canSplit(rsvp)) return;
-  const cap = Number(rsvp.party_size) - 1;
-  const existing = Number(rsvp.vote_b_count) || 0;
-  state.splitCount = existing >= 1 && existing <= cap
-    ? existing
-    : Math.max(1, Math.min(cap, Math.floor(Number(rsvp.party_size) / 2)));
-  els.splitError.hidden = true;
-  els.splitError.textContent = "";
-  setStep("split");
+function beginPass() {
+  if (state.saving || !canPass(state.rsvp)) return;
+  setStep("pass");
 }
 
-function setSplit(next) {
-  const cap = Math.max(1, Number(state.rsvp?.party_size || 2) - 1);
-  state.splitCount = Math.min(cap, Math.max(1, next));
-  paintSplit();
+function onPassPoster(event) {
+  const button = event.target.closest("[data-pass]");
+  // Set the lock before any await, so a second tap in the same beat cannot
+  // cast a second vote.
+  if (!button || state.step !== "pass" || state.saving) return;
+  state.saving = true;
+  button.classList.add("is-chosen");
+  savePass(button.dataset.pass);
 }
 
-function paintSplit() {
-  const rsvp = state.rsvp;
-  if (!rsvp) return;
-  const other = otherMovie(rsvp.vote);
-  const otherName = movieTitle(other);
-  const cap = Math.max(1, Number(rsvp.party_size) - 1);
-  state.splitCount = Math.max(1, Math.min(cap, state.splitCount || 1));
-  els.splitLabel.textContent = `For ${otherName}`;
-  els.splitTitle.textContent = `How many of us for ${otherName}?`;
-  els.splitRest.textContent = `The rest of us are for ${movieTitle(rsvp.vote)}.`;
-  els.splitValue.textContent = String(state.splitCount);
-  els.splitValue.setAttribute(
-    "aria-label",
-    state.splitCount === 1 ? `1 of us for ${otherName}` : `${state.splitCount} of us for ${otherName}`,
-  );
-  els.splitDec.disabled = state.splitCount <= 1;
-  els.splitInc.disabled = state.splitCount >= cap;
-  els.splitClear.hidden = !splitOf(rsvp);
+function undoPass() {
+  if (state.saving || !canUndo(state.rsvp)) return;
+  state.saving = true;
+  savePass(null);
 }
 
 function renderVotes() {
   const v = state.standings?.votes || {};
   const counts = Object.fromEntries(EVENT.movies.map((movie) => [movie.id, Number(v[movie.id]) || 0]));
   const max = Math.max(...Object.values(counts), 1);
-  const split = splitOf(state.rsvp);
+  const passed = extraVotes(state.rsvp);
+  const mineShares = passed.length ? shares(state.rsvp) : null;
   const mine = state.rsvp?.would_attend === "none" ? null : state.rsvp?.vote || null;
   els.votes.querySelectorAll(".bucket").forEach((bucket) => {
     const id = bucket.dataset.movie;
     const n = counts[id];
     bucket.querySelector("b").textContent = String(n);
-    const ours = split ? id === split.vote || id === split.voteB : id === mine;
+    const ours = mineShares ? (mineShares[id] || 0) > 0 : id === mine;
     bucket.classList.toggle("is-mine", Boolean(ours));
     const you = bucket.querySelector(".you");
-    if (split && id === split.vote) you.textContent = `${split.rest} of us`;
-    else if (split && id === split.voteB) you.textContent = `${split.count} of us`;
+    if (mineShares && (mineShares[id] || 0) > 0) you.textContent = `${mineShares[id]} of us`;
     else you.textContent = "Your vote";
     const fill = n ? 0.35 + 0.65 * (n / max) : 0;
     const corn = bucket.querySelector(".corn");
@@ -869,24 +871,27 @@ function submitCant() {
   );
 }
 
-async function saveSplit(count) {
-  if (state.saving || !state.token) return;
-  state.saving = true;
-  const button = count == null ? els.splitClear : els.splitSubmit;
-  const label = button.textContent;
-  button.setAttribute("aria-busy", "true");
-  els.splitError.hidden = true;
+async function savePass(vote) {
+  if (!state.token) {
+    state.saving = false;
+    return;
+  }
+  els.passError.hidden = true;
   try {
     const { rpc } = await import("./api.js");
-    const data = await rpc("movie_split_vote", { p_token: state.token, p_count: count });
+    const data = await rpc("movie_pass_vote", { p_token: state.token, p_vote: vote });
     if (!data || data.ok === false) {
       const code = data?.error || "network";
       if (code === "closed") {
         state.flags.rsvpsOpen = false;
         state.flags.votingOpen = false;
+        if (state.rsvp) showConfirm(state.rsvp, { celebrate: false });
+        return;
       }
-      els.splitError.hidden = false;
-      els.splitError.textContent = ERRORS[code] || ERRORS.network;
+      if (state.step === "pass") {
+        els.passError.hidden = false;
+        els.passError.textContent = ERRORS[code] || ERRORS.network;
+      }
       return;
     }
     if (data.standings) {
@@ -897,12 +902,12 @@ async function saveSplit(count) {
     showConfirm(data.rsvp, { celebrate: false });
   } catch (error) {
     console.error(error);
-    els.splitError.hidden = false;
-    els.splitError.textContent = ERRORS.network;
+    if (state.step === "pass") {
+      els.passError.hidden = false;
+      els.passError.textContent = ERRORS.network;
+    }
   } finally {
     state.saving = false;
-    button.removeAttribute("aria-busy");
-    button.textContent = label;
   }
 }
 

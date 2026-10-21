@@ -258,6 +258,7 @@
           <div class="step" data-step="confirm">
             <h2 tabindex="-1" id="confirm-title">See you Friday.</h2>
             <p class="confirm-sub" id="confirm-sub"></p>
+            <button type="button" class="text-btn" id="undo" hidden>Undo last</button>
             <div class="votes" id="votes" role="img" aria-label="">
               <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><radialGradient id="puff" cx="0.38" cy="0.32" r="0.75"><stop offset="0" stop-color="#fffdf6"/><stop offset="0.65" stop-color="#fff1cf"/><stop offset="1" stop-color="#f3d79a"/></radialGradient></defs></svg>
               <p class="votes-label">People so far</p>
@@ -279,31 +280,31 @@
                 <a class="route-go" data-dir href="https://www.google.com/maps/dir/?api=1&amp;destination=32.15498,-95.36768" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 18s6-5.6 6-10a6 6 0 1 0-12 0c0 4.4 6 10 6 10zm0-7.6a2.4 2.4 0 1 1 0-4.8 2.4 2.4 0 0 1 0 4.8z" fill="currentColor" fill-rule="evenodd"/></svg>Directions</a>
               </div>
               <div class="confirm-actions">
-                <button type="button" class="text-btn" id="split" hidden>Split our vote</button>
+                <button type="button" class="text-btn" id="pass" hidden>Pass the phone</button>
                 <button type="button" class="text-btn" id="change">Change RSVP</button>
               </div>
             </div>
           </div>
 
-          <div class="step" data-step="split">
+          <div class="step" data-step="pass">
             <div class="step-head"><button type="button" class="back" data-back aria-label="Back"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4.5L7 10l5.5 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>
-            <h2 class="sr-only" tabindex="-1" id="split-title">How many of us?</h2>
-            <p class="split-rest" id="split-rest"></p>
-            <div class="split-count">
-              <span class="field-label" id="split-label">How many of us?</span>
-              <div class="stepper" role="group" aria-labelledby="split-label">
-                <button type="button" id="split-dec" aria-label="Fewer of us">
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                </button>
-                <output id="split-value" aria-live="polite">1</output>
-                <button type="button" id="split-inc" aria-label="More of us">
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M10 5v10" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-                </button>
-              </div>
+            <h2 class="sr-only" tabindex="-1" id="pass-title">Your turn! Tap your movie</h2>
+            <p class="pass-line" id="pass-line">Your turn! Tap your movie</p>
+            <div class="posters pass-posters" id="pass-posters">
+              <button type="button" class="poster" data-pass="inside_out_2026" aria-label="Inside Out">
+                <span class="poster-art" aria-hidden="true">
+                  <img src="/assets/posters/inside-out.webp" srcset="/assets/posters/inside-out.webp 600w, /assets/posters/inside-out-2x.webp 1200w" sizes="42vw" alt="" width="600" height="900" decoding="async">
+                </span>
+                <span class="poster-title">Inside Out</span>
+              </button>
+              <button type="button" class="poster" data-pass="wild_robot" aria-label="The Wild Robot">
+                <span class="poster-art" aria-hidden="true">
+                  <img src="/assets/posters/wild-robot.webp" srcset="/assets/posters/wild-robot.webp 600w, /assets/posters/wild-robot-2x.webp 1200w" sizes="42vw" alt="" width="600" height="900" decoding="async">
+                </span>
+                <span class="poster-title">The Wild Robot</span>
+              </button>
             </div>
-            <p class="error" id="split-error" role="alert" hidden></p>
-            <button type="button" class="btn btn-primary btn-xl" id="split-submit">That's us</button>
-            <button type="button" class="text-btn" id="split-clear" hidden>Vote together</button>
+            <p class="error" id="pass-error" role="alert" hidden></p>
           </div>
 
         </div>

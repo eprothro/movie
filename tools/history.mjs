@@ -1,7 +1,7 @@
 // Past nights: headcount matches the live "coming" number, the sum of
 // party_size for people who could come. A would_attend of "none" is left
-// out. A split party still counts once. Its vote is divided, and the
-// winner is whichever side is ahead.
+// out. A party that passed the phone still counts once. Its votes are
+// shared, and the winner is whichever side is ahead.
 // The booth renders that payload. Nothing calls the live database.
 //
 //   python3 -m http.server 8765
@@ -15,10 +15,11 @@ const shots = process.env.RSVP_SHOTS || "";
 if (shots) fs.mkdirSync(shots, { recursive: true });
 
 function voteShare(row, movie) {
-  const extra = Number(row.vote_b_count) || 0;
-  let n = 0;
-  if (row.vote === movie) n += row.party_size - extra;
-  if (row.vote_b === movie) n += extra;
+  if (!row.vote) return 0;
+  const extras = Array.isArray(row.extra_votes) ? row.extra_votes : [];
+  const unvoted = Math.max(0, row.party_size - 1 - extras.length);
+  let n = row.vote === movie ? 1 + unvoted : 0;
+  for (const id of extras) if (id === movie) n += 1;
   return n;
 }
 
@@ -92,20 +93,20 @@ assert.equal(tied.headcount, 9);
 assert.deepEqual(tied.votes, { alpha: 4, beta: 4 });
 assert.equal(tied.winner, null);
 assert.equal(tied.winner_title, null);
-const splitNight = archive(oct10, [
-  { party_size: 4, would_attend: "both", vote: "princess_bride", vote_b: "top_gun", vote_b_count: 2 },
+const passedNight = archive(oct10, [
+  { party_size: 4, would_attend: "both", vote: "princess_bride", extra_votes: ["top_gun", "top_gun"] },
   { party_size: 6, would_attend: "none", vote: null },
 ]);
-assert.equal(splitNight.headcount, 4, "a split party counts once");
-assert.deepEqual(splitNight.votes, { princess_bride: 2, top_gun: 2 });
-assert.equal(splitNight.votes.princess_bride + splitNight.votes.top_gun, splitNight.headcount);
+assert.equal(passedNight.headcount, 4, "a passed phone still counts the party once");
+assert.deepEqual(passedNight.votes, { princess_bride: 2, top_gun: 2 });
+assert.equal(passedNight.votes.princess_bride + passedNight.votes.top_gun, passedNight.headcount);
 const uneven = archive(oct10, [
-  { party_size: 4, would_attend: "both", vote: "princess_bride", vote_b: "top_gun", vote_b_count: 1 },
+  { party_size: 4, would_attend: "both", vote: "princess_bride", extra_votes: ["top_gun"] },
 ]);
 assert.equal(uneven.headcount, 4);
 assert.deepEqual(uneven.votes, { princess_bride: 3, top_gun: 1 });
 assert.equal(uneven.winner, "princess_bride");
-console.log("ok history tally", won.votes, "tie", tied.votes, "split", splitNight.votes);
+console.log("ok history tally", won.votes, "tie", tied.votes, "pass", passedNight.votes);
 
 const current = {
   ok: true,
