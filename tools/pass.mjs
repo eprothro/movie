@@ -180,13 +180,13 @@ for (const viewport of [
   const asked = await page.evaluate(() => ({
     line: document.getElementById("screen-line").textContent,
     sub: document.getElementById("screen-sub").textContent,
-    hint: document.getElementById("pass-line").textContent,
+    duplicate: document.getElementById("pass-line"),
     inputs: document.querySelectorAll(".step.is-active input").length,
     steppers: document.querySelectorAll(".step.is-active .stepper").length,
   }));
   assert.equal(asked.line, "Your turn!");
   assert.equal(asked.sub, "Tap your movie");
-  assert.equal(asked.hint, "Your turn! Tap your movie");
+  assert.equal(asked.duplicate, null, `${size} the prompt is only on the screen`);
   assert.equal(asked.inputs, 0, `${size} no name field`);
   assert.equal(asked.steppers, 0, `${size} no stepper`);
   const posters = await page.locator("#pass-posters").boundingBox();
