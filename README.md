@@ -6,7 +6,7 @@ The site is static. GitHub Pages serves it from the `main` branch root. The cust
 
 ## Before it works
 
-1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), the first three migrations are already applied. Run [`supabase/migrations/20261013200000_history.sql`](supabase/migrations/20261013200000_history.sql) by hand. It is safe to re-run. It keeps every existing RSVP, files those rows under October 10, records that night's winner from the vote headcount, and opens an empty October 30 night. Do not re-run `001`–`003` after it, and do not run it from the deploy. The PIN hash is not touched.
+1. In the [Supabase SQL editor](https://supabase.com/dashboard/project/yhiynwocgqskcmldrmyd/sql), the history migration is already applied. Run [`supabase/migrations/20261021200000_pass_the_phone.sql`](supabase/migrations/20261021200000_pass_the_phone.sql) by hand. It is safe to re-run. It adds a nullable list of later votes and does not rewrite existing RSVPs. Do not re-run `001`–`003` after history, and do not run the file from the deploy. The PIN hash is not touched.
 2. Set the host PIN (4–8 digits). This is the only place the PIN should exist. Do not commit it.
 
    ```sql
@@ -26,7 +26,7 @@ Showtime is 20 minutes after sunset at the backyard, 32.15498, -95.36768 (`Ameri
 
 Five wrong PINs lock admin calls for 10 minutes. The PIN is stored only as a bcrypt hash (`pgcrypto`). Anon cannot read `movie_settings`.
 
-The guest book lists this night's RSVPs. Each row stores `would_attend` (`inside_out_2026`, `wild_robot`, `both`, or `none`) and `vote` (the preferred movie, or null). October 10 rows stay on that event (`princess_bride`, `top_gun`). Hosts can reset the book, which deletes this night's RSVPs and votes and leaves past nights. The public page shows vote counts for the current night. The booth also shows projected headcount: people who would come if that movie plays, counting anyone marked for that movie or for both. Under the guest list, **Past nights** shows the date, the two movies, the winner, headcount (people who could come, the same sum as the live coming number, so a can't-make-it party is left out), and the vote headcount for each movie. Hosts can remove an entry and close or reopen RSVPs and voting.
+The guest book lists this night's RSVPs. Each row stores `would_attend` (`inside_out_2026`, `wild_robot`, `both`, or `none`) and `vote` (the preferred movie, or null). A party of 2 or more can **Pass the phone**: each tap appends one movie to `extra_votes`. The person who sent the RSVP already voted. Anyone who has not tapped yet still counts toward `vote`, so the shares always add up to `party_size`. A party of 4 with vote Inside Out and two Wild Robot taps is Inside Out 2, Wild Robot 2, and still 4 coming. `would_attend` stays a fact about the whole party. Changing the RSVP clears the extra votes. October 10 rows stay on that event (`princess_bride`, `top_gun`). Hosts can reset the book, which deletes this night's RSVPs and votes and leaves past nights. The public page shows vote counts for the current night. The booth also shows projected headcount: people who would come if that movie plays, counting anyone marked for that movie or for both. Under the guest list, **Past nights** shows the date, the two movies, the winner, headcount (people who could come, the same sum as the live coming number, so a can't-make-it party is left out), and the vote headcount for each movie. Hosts can remove an entry and close or reopen RSVPs and voting.
 
 ## How RSVPs are stored
 
@@ -34,7 +34,8 @@ Row level security is on, with no policies, and table privileges are revoked fro
 
 | Function | Who | What |
 | --- | --- | --- |
-| `movie_submit_rsvp` | guest | Create or update. Returns an edit token. |
+| `movie_submit_rsvp` | guest | Create or update. Returns an edit token. Clears pass-along votes. |
+| `movie_pass_vote` | guest | Add one person's vote, or undo the last one. |
 | `movie_get_rsvp` | guest | Their own RSVP, by token. |
 | `movie_get_standings` | anyone | Vote counts. No names, no per-movie headcount. |
 | `movie_admin_overview` | hosts | This night's list, plus past nights. Requires the PIN. |

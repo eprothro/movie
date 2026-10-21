@@ -1,7 +1,7 @@
 // Past nights: headcount matches the live "coming" number, the sum of
 // party_size for people who could come. A would_attend of "none" is left
-// out. Vote headcount is still the sum of party_size per movie, and the
-// winner is whichever side is ahead.
+// out. A party that passed the phone still counts once. Its votes are
+// shared, and the winner is whichever side is ahead.
 // The booth renders that payload. Nothing calls the live database.
 //
 //   python3 -m http.server 8765
@@ -14,14 +14,24 @@ const base = process.env.RSVP_BASE || "http://127.0.0.1:8765/";
 const shots = process.env.RSVP_SHOTS || "";
 if (shots) fs.mkdirSync(shots, { recursive: true });
 
+function voteShare(row, movie) {
+  if (!row.vote) return 0;
+  const extras = Array.isArray(row.extra_votes) ? row.extra_votes : [];
+  const unvoted = Math.max(0, row.party_size - 1 - extras.length);
+  let n = row.vote === movie ? 1 + unvoted : 0;
+  for (const id of extras) if (id === movie) n += 1;
+  return n;
+}
+
 function archive(event, rows) {
   let ahead = 0;
   let behind = 0;
   let headcount = 0;
   for (const row of rows) {
-    if (row.would_attend !== "none") headcount += row.party_size;
-    if (row.vote === event.movie_a) ahead += row.party_size;
-    if (row.vote === event.movie_b) behind += row.party_size;
+    if (row.would_attend === "none") continue;
+    headcount += row.party_size;
+    ahead += voteShare(row, event.movie_a);
+    behind += voteShare(row, event.movie_b);
   }
   const winner = ahead > behind ? event.movie_a : behind > ahead ? event.movie_b : null;
   const winner_title =
@@ -83,7 +93,20 @@ assert.equal(tied.headcount, 9);
 assert.deepEqual(tied.votes, { alpha: 4, beta: 4 });
 assert.equal(tied.winner, null);
 assert.equal(tied.winner_title, null);
-console.log("ok history tally", won.votes, "tie", tied.votes);
+const passedNight = archive(oct10, [
+  { party_size: 4, would_attend: "both", vote: "princess_bride", extra_votes: ["top_gun", "top_gun"] },
+  { party_size: 6, would_attend: "none", vote: null },
+]);
+assert.equal(passedNight.headcount, 4, "a passed phone still counts the party once");
+assert.deepEqual(passedNight.votes, { princess_bride: 2, top_gun: 2 });
+assert.equal(passedNight.votes.princess_bride + passedNight.votes.top_gun, passedNight.headcount);
+const uneven = archive(oct10, [
+  { party_size: 4, would_attend: "both", vote: "princess_bride", extra_votes: ["top_gun"] },
+]);
+assert.equal(uneven.headcount, 4);
+assert.deepEqual(uneven.votes, { princess_bride: 3, top_gun: 1 });
+assert.equal(uneven.winner, "princess_bride");
+console.log("ok history tally", won.votes, "tie", tied.votes, "pass", passedNight.votes);
 
 const current = {
   ok: true,

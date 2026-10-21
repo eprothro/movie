@@ -1,4 +1,4 @@
-import { EVENT, PIN_KEY, movieTitle, peopleLabel } from "./config.js";
+import { EVENT, PIN_KEY, movieTitle, peopleLabel, shortTitle } from "./config.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -267,12 +267,39 @@ function applyFlags(rsvpsOpen, votingOpen) {
   $("vote-switch-label").textContent = votingOpen ? "Open" : "Closed";
 }
 
+// Same rule as movie_private.votes_for. The first voter plus anyone who has
+// not tapped yet sit on vote. Each extra tap counts as one person.
+function extraVotes(row) {
+  return Array.isArray(row?.extra_votes) ? row.extra_votes.filter(Boolean) : [];
+}
+
+function voteShare(row, movie) {
+  if (!row?.vote) return 0;
+  const extras = extraVotes(row);
+  const unvoted = Math.max(0, Number(row.party_size) - 1 - extras.length);
+  let n = row.vote === movie ? 1 + unvoted : 0;
+  for (const id of extras) if (id === movie) n += 1;
+  return n;
+}
+
 function attendLine(row) {
+  const extras = extraVotes(row);
+  if (extras.length && row.would_attend !== "none") {
+    return EVENT.movies
+      .map((movie) => ({ title: shortTitle(movie.id), n: voteShare(row, movie.id) }))
+      .filter((part) => part.n > 0)
+      .map((part) => `${part.title} ${part.n}`)
+      .join(" · ");
+  }
   if (row.would_attend === "none") return "Can't make it";
   if (row.would_attend === "both") {
     return row.vote ? `Either · voted ${movieTitle(row.vote)}` : "Either";
   }
   return `${movieTitle(row.would_attend)} only`;
+}
+
+function partyCount(row) {
+  return peopleLabel(row.party_size);
 }
 
 function renderBook(data) {
@@ -337,7 +364,7 @@ function renderBook(data) {
     if (row.would_attend !== "none") {
       const count = document.createElement("p");
       count.className = "count";
-      count.textContent = peopleLabel(row.party_size);
+      count.textContent = partyCount(row);
       top.append(count);
     }
 

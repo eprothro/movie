@@ -1865,6 +1865,12 @@ input[type="text"].is-shaking {
   margin-top: 18px;
 }
 
+/* The tally and undo already separate the tubs, and a 667pt phone has no
+   room for the extra gap once the phone is going around. */
+.step[data-step="confirm"].is-coming:has(#undo:not([hidden])) .votes {
+  margin-top: 0;
+}
+
 .confirm-sub {
   margin: 6px 0 0;
   font-size: 15px;
@@ -1983,6 +1989,45 @@ input[type="text"].is-shaking {
   display: grid;
   justify-items: center;
   margin-top: 10px;
+}
+
+.confirm-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 0 6px;
+}
+
+.confirm-actions .text-btn {
+  white-space: nowrap;
+}
+
+#pass {
+  color: var(--gold);
+  font-weight: 650;
+  text-decoration-color: rgba(255, 210, 126, 0.45);
+}
+
+.step[data-step="confirm"] #undo {
+  margin-top: -2px;
+}
+
+/* Undo plus the handoff is the tall confirmation. Tuck the footer so both
+   actions stay above the home indicator on a 667pt phone. */
+.step[data-step="confirm"]:has(#undo:not([hidden])) .confirm-foot {
+  margin-top: 4px;
+}
+
+.pass-posters {
+  opacity: 1;
+  transform: none;
+  /* The prompt lives on the screen. A little air keeps the posters off the back chevron. */
+  margin-top: 10px;
+}
+
+.step[data-step="pass"] .poster-art {
+  width: min(100%, 112px);
 }
 
 /* ------------------------------------------------------------------ */

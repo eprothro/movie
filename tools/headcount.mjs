@@ -12,7 +12,18 @@ const base = process.env.RSVP_BASE || "http://127.0.0.1:8765/";
 const shots = process.env.RSVP_SHOTS || "";
 if (shots) fs.mkdirSync(shots, { recursive: true });
 
-// Mirrors supabase/migrations/003_vote_headcount.sql.
+// Mirrors movie_private.votes_for. The RSVP vote is person one. Each extra
+// tap is one more person. Anyone who has not tapped yet still counts toward
+// the RSVP vote, so the shares sum to party_size.
+function voteShare(row, movie) {
+  if (!row.vote) return 0;
+  const extras = Array.isArray(row.extra_votes) ? row.extra_votes : [];
+  const unvoted = Math.max(0, row.party_size - 1 - extras.length);
+  let n = row.vote === movie ? 1 + unvoted : 0;
+  for (const id of extras) if (id === movie) n += 1;
+  return n;
+}
+
 function tally(rows) {
   const votes = { inside_out_2026: 0, wild_robot: 0 };
   let coming = 0;
@@ -27,7 +38,8 @@ function tally(rows) {
     coming += row.party_size;
     if (row.would_attend === "inside_out_2026" || row.would_attend === "both") ifPrincess += row.party_size;
     if (row.would_attend === "wild_robot" || row.would_attend === "both") ifTop += row.party_size;
-    if (row.vote === "inside_out_2026" || row.vote === "wild_robot") votes[row.vote] += row.party_size;
+    votes.inside_out_2026 += voteShare(row, "inside_out_2026");
+    votes.wild_robot += voteShare(row, "wild_robot");
   }
   return {
     votes,
@@ -73,7 +85,29 @@ assert.equal(mixedTotals.if_inside_out_2026, 7);
 assert.equal(mixedTotals.if_wild_robot, 7);
 assert.deepEqual(tiedTotals.votes, { inside_out_2026: 5, wild_robot: 5 });
 assert.notDeepEqual(tiedTotals.votes, forms(tied));
-console.log("ok tally", mixedTotals.votes, "tie", tiedTotals.votes);
+// Party of 4, votes A, B, B. A is the RSVP plus the one person who has not
+// tapped yet. B is the two pass-along taps. Still 4 coming, not 8.
+const passed = [
+  { name: "Westley", party_size: 4, would_attend: "both", vote: "inside_out_2026", extra_votes: ["wild_robot", "wild_robot"] },
+  { name: "Vizzini", party_size: 6, would_attend: "none", vote: null },
+];
+const passedTotals = tally(passed);
+assert.equal(passedTotals.coming, 4, "two pass-along votes are still 4 people coming");
+assert.deepEqual(passedTotals.votes, { inside_out_2026: 2, wild_robot: 2 });
+assert.equal(
+  passedTotals.votes.inside_out_2026 + passedTotals.votes.wild_robot,
+  passedTotals.coming,
+  "vote shares must not add a second copy of the party",
+);
+assert.equal(passedTotals.if_inside_out_2026, 4);
+assert.equal(passedTotals.if_wild_robot, 4);
+assert.equal(passedTotals.none_parties, 1);
+const echoed = tally([
+  { party_size: 4, would_attend: "both", vote: "inside_out_2026", extra_votes: ["inside_out_2026", "wild_robot"] },
+]);
+assert.deepEqual(echoed.votes, { inside_out_2026: 3, wild_robot: 1 });
+assert.equal(echoed.votes.inside_out_2026 + echoed.votes.wild_robot, echoed.coming);
+console.log("ok tally", mixedTotals.votes, "tie", tiedTotals.votes, "pass", passedTotals.votes);
 
 function standingsBody(totals, rsvp) {
   const standings = {
