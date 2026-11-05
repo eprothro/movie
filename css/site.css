@@ -997,7 +997,7 @@ h1 em {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  column-gap: 10px;
+  column-gap: 0;
   row-gap: 4px;
   max-width: 100%;
   margin: 6px 0 0;
@@ -1007,26 +1007,19 @@ h1 em {
   color: var(--muted);
 }
 
-.bring-extra,
+.bring .sep {
+  white-space: pre;
+}
+
 .bring-blanket {
   display: inline-flex;
   align-items: center;
 }
 
-.bring-extra {
-  gap: 10px;
-}
-
-/* The three notes share one line. A 375px phone is about 14px short of the
-   13px row, and a wrap pushes the countdown into the screen. */
+/* The three notes share one line. A wrap on a short phone pushes the countdown into the screen. */
 @media (max-width: 380px) {
   .bring {
     font-size: 12px;
-    column-gap: 8px;
-  }
-
-  .bring-extra {
-    gap: 8px;
   }
 }
 
