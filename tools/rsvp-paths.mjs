@@ -554,7 +554,7 @@ for (const [now, tonight, label] of introCases) {
   assert.equal(info.date, tonight ? "Tonight" : "Friday, Nov 13", label);
   assert.equal(info.rm, tonight ? "Tonight" : "Friday, Nov 13", label);
   assert.equal(info.place, tonight ? "Directions" : "Bullard, TX", label);
-  assert.equal(info.bring, "Snacks provided · Bring your own chair · 🧣 BYO blanket", label);
+  assert.equal(info.bring, "Snacks provided · Bring your own chair/blanket", label);
   if (info.numSize) assert.ok(info.numSize >= info.unitSize + 6, `${label} countdown type ${info.numSize}/${info.unitSize}`);
   else assert.ok(info.countSize >= 16, `${label} countdown size ${info.countSize}`);
   assert.match(info.when, /Showtime/, label);
@@ -682,7 +682,7 @@ if (shots) {
   for (const [now, viewport, name] of shotsWanted) {
     const { context, page, info } = await introAt(now, viewport);
     assert.equal(info.place, name.startsWith("intro-friday") ? "Directions" : "Bullard, TX", name);
-    assert.equal(info.bring, "Snacks provided · Bring your own chair · 🧣 BYO blanket", name);
+    assert.equal(info.bring, "Snacks provided · Bring your own chair/blanket", name);
     assert.equal(info.countdown, countdownText(now, info.showtime), name);
     if (name.includes("1pm") && viewport.height > 740) assert.ok(info.gap >= 18, `${name} gap ${info.gap}`);
     await page.waitForFunction(() => {
