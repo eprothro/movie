@@ -561,7 +561,7 @@ for (const [now, tonight, label] of introCases) {
   assert.equal(info.date, tonight ? "Tonight" : "Friday, Nov 13", label);
   assert.equal(info.rm, tonight ? "Tonight" : "Friday, Nov 13", label);
   assert.equal(info.place, tonight ? "Directions" : "Bullard, TX", label);
-  assert.equal(info.bring, "Snacks provided||Bring your own chair", label);
+  assert.equal(info.bring, "Snacks provided||Bring your own chair|🧣 BYO blanket", label);
   assert.ok(Math.abs(info.bringGaps.bring.left - info.bringGaps.bring.right) < 1, `${label} dot ${info.bringGaps.bring.left} ${info.bringGaps.bring.right}`);
   assert.ok(Math.abs(info.bringGaps.bring.left - info.bringGaps.when.left) < 1, `${label} dot vs date`);
   assert.ok(Math.abs(info.bringGaps.bring.right - info.bringGaps.when.right) < 1, `${label} dot vs showtime`);
@@ -692,7 +692,7 @@ if (shots) {
   for (const [now, viewport, name] of shotsWanted) {
     const { context, page, info } = await introAt(now, viewport);
     assert.equal(info.place, name.startsWith("intro-friday") ? "Directions" : "Bullard, TX", name);
-    assert.equal(info.bring, "Snacks provided||Bring your own chair", name);
+    assert.equal(info.bring, "Snacks provided||Bring your own chair|🧣 BYO blanket", name);
     assert.equal(info.countdown, countdownText(now, info.showtime), name);
     if (name.includes("1pm") && viewport.height > 740) assert.ok(info.gap >= 18, `${name} gap ${info.gap}`);
     await page.waitForFunction(() => {
@@ -732,7 +732,7 @@ if (shots) {
   assert.match(meta, /Inside Out/);
   assert.match(meta, /The Wild Robot/);
   assert.doesNotMatch(meta, /Saturday|Top Gun|Princess Bride/);
-  assert.equal(show, "5:42 PM");
+  assert.equal(show, "6:42 PM");
   assert.equal(await page.locator("#date-label").innerText(), "Friday, Nov 13");
   console.log("ok friday copy", show);
   await context.close();

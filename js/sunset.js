@@ -154,6 +154,53 @@ export function zonedTime(year, month, day, hour, minute, timeZone) {
   return new Date(utc);
 }
 
+/** Offset of `timeZone` at `date`, in minutes east of UTC. */
+function zoneOffsetMinutes(date, timeZone) {
+  const format = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts = Object.fromEntries(format.formatToParts(date).map((part) => [part.type, part.value]));
+  const wall = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour) % 24,
+    Number(parts.minute),
+    Number(parts.second),
+  );
+  return Math.round((wall - date.getTime()) / 60000);
+}
+
+/**
+ * True when `timeZone` is on daylight time at `date`.
+ * Standard time is the smaller of the mid-January and mid-July offsets
+ * (clocks spring forward). A zone with no daylight saving is never daylight.
+ */
+export function isDaylightTime(date, timeZone) {
+  const year = Number(new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric" }).format(date));
+  const january = zoneOffsetMinutes(zonedTime(year, 1, 15, 12, 0, timeZone), timeZone);
+  const july = zoneOffsetMinutes(zonedTime(year, 7, 15, 12, 0, timeZone), timeZone);
+  return zoneOffsetMinutes(date, timeZone) > Math.min(january, july);
+}
+
+/**
+ * Minutes after sunset. Daylight time is minutesAfterSunset.
+ * Standard time is that base plus standardTimeExtraMinutes (20 + 60 on CST).
+ */
+export function showtimeOffsetMinutes(event) {
+  const noon = zonedTime(event.year, event.month, event.day, 12, 0, event.timezone);
+  const base = event.minutesAfterSunset;
+  if (isDaylightTime(noon, event.timezone)) return base;
+  return base + (event.standardTimeExtraMinutes ?? 0);
+}
+
 export function formatClock(date, timeZone) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone,
@@ -181,6 +228,6 @@ export function eventShowtime(event) {
   const noon = zonedTime(event.year, event.month, event.day, 12, 0, event.timezone);
   const sunset = sunsetAt(noon, event.latitude, event.longitude);
   if (!sunset || Number.isNaN(sunset.getTime())) return null;
-  const showtime = new Date(sunset.getTime() + event.minutesAfterSunset * 60000);
+  const showtime = new Date(sunset.getTime() + showtimeOffsetMinutes(event) * 60000);
   return { sunset, showtime };
 }

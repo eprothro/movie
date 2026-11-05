@@ -9,7 +9,9 @@ export const EVENT = {
   year: 2026,
   month: 11,
   day: 13,
+  // Twenty minutes after sunset. Standard time adds another hour, so CST is sunset + 80.
   minutesAfterSunset: 20,
+  standardTimeExtraMinutes: 60,
   address: "11921 County Road 152 W, Bullard, TX 75757",
   latitude: 32.15498,
   longitude: -95.36768,
