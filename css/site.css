@@ -1011,18 +1011,6 @@ h1 em {
   white-space: pre;
 }
 
-.bring-blanket {
-  display: inline-flex;
-  align-items: center;
-}
-
-/* The three notes share one line. A wrap on a short phone pushes the countdown into the screen. */
-@media (max-width: 380px) {
-  .bring {
-    font-size: 12px;
-  }
-}
-
 .countdown {
   display: flex;
   justify-content: center;
