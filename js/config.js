@@ -2,13 +2,13 @@
 
 export const EVENT = {
   title: "Prothro Movie Night",
-  dateLabel: "Friday, October 30",
-  dateShort: "Friday, Oct 30",
-  dateCompact: "Fri, Oct 30",
+  dateLabel: "Friday, November 13",
+  dateShort: "Friday, Nov 13",
+  dateCompact: "Fri, Nov 13",
   weekday: "Friday",
   year: 2026,
-  month: 10,
-  day: 30,
+  month: 11,
+  day: 13,
   minutesAfterSunset: 20,
   address: "11921 County Road 152 W, Bullard, TX 75757",
   latitude: 32.15498,

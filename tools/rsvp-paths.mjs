@@ -475,14 +475,14 @@ assertMaps(await directions(desktopUA), maps.google, "desktop");
 console.log("ok directions", maps.apple, maps.geo, maps.google);
 
 const introCases = [
-  ["2026-10-29T15:00-05:00", false, "thursday"],
-  ["2026-10-30T11:59-05:00", false, "friday-1159"],
-  ["2026-10-30T12:00-05:00", true, "friday-noon"],
-  ["2026-10-30T13:00-05:00", true, "friday-1pm"],
-  ["2026-10-30T21:00-05:00", true, "friday-9pm"],
-  ["2026-10-31T10:00-05:00", false, "saturday"],
-  ["2026-10-30T16:59:00Z", false, "utc-before-noon-chicago"],
-  ["2026-10-30T17:00:00Z", true, "utc-noon-chicago"],
+  ["2026-11-12T15:00-06:00", false, "thursday"],
+  ["2026-11-13T11:59-06:00", false, "friday-1159"],
+  ["2026-11-13T12:00-06:00", true, "friday-noon"],
+  ["2026-11-13T13:00-06:00", true, "friday-1pm"],
+  ["2026-11-13T21:00-06:00", true, "friday-9pm"],
+  ["2026-11-14T10:00-06:00", false, "saturday"],
+  ["2026-11-13T17:59:00Z", false, "utc-before-noon-chicago"],
+  ["2026-11-13T18:00:00Z", true, "utc-noon-chicago"],
 ];
 
 function countdownText(nowIso, showIso) {
@@ -558,8 +558,8 @@ async function introAt(now, viewport) {
 for (const [now, tonight, label] of introCases) {
   const { context, info } = await introAt(now, { width: 390, height: 844 });
   assert.equal(info.tonight, tonight, label);
-  assert.equal(info.date, tonight ? "Tonight" : "Friday, Oct 30", label);
-  assert.equal(info.rm, tonight ? "Tonight" : "Friday, Oct 30", label);
+  assert.equal(info.date, tonight ? "Tonight" : "Friday, Nov 13", label);
+  assert.equal(info.rm, tonight ? "Tonight" : "Friday, Nov 13", label);
   assert.equal(info.place, tonight ? "Directions" : "Bullard, TX", label);
   assert.equal(info.bring, "Snacks provided||Bring your own chair", label);
   assert.ok(Math.abs(info.bringGaps.bring.left - info.bringGaps.bring.right) < 1, `${label} dot ${info.bringGaps.bring.left} ${info.bringGaps.bring.right}`);
@@ -595,7 +595,7 @@ for (const [now, tonight, label] of introCases) {
   });
   const page = await context.newPage();
   const url = new URL(base);
-  url.searchParams.set("now", "2026-10-30T13:00-05:00");
+  url.searchParams.set("now", "2026-11-13T13:00-06:00");
   await page.goto(url.href, { waitUntil: "load" });
   const href = await page.locator(".hero .where").getAttribute("href");
   assert.equal(href, maps.apple, "friday iphone directions");
@@ -684,10 +684,10 @@ for (const viewport of [
 
 if (shots) {
   const shotsWanted = [
-    ["2026-10-30T13:00-05:00", { width: 375, height: 667 }, "intro-friday-1pm-375x667"],
-    ["2026-10-30T13:00-05:00", { width: 390, height: 844 }, "intro-friday-1pm-390x844"],
-    ["2026-10-29T15:00-05:00", { width: 375, height: 667 }, "intro-normal-375x667"],
-    ["2026-10-29T15:00-05:00", { width: 390, height: 844 }, "intro-normal-390x844"],
+    ["2026-11-13T13:00-06:00", { width: 375, height: 667 }, "intro-friday-1pm-375x667"],
+    ["2026-11-13T13:00-06:00", { width: 390, height: 844 }, "intro-friday-1pm-390x844"],
+    ["2026-11-12T15:00-06:00", { width: 375, height: 667 }, "intro-normal-375x667"],
+    ["2026-11-12T15:00-06:00", { width: 390, height: 844 }, "intro-normal-390x844"],
   ];
   for (const [now, viewport, name] of shotsWanted) {
     const { context, page, info } = await introAt(now, viewport);
@@ -728,12 +728,12 @@ if (shots) {
   const { context, page } = await newPage({ width: 390, height: 844 });
   const meta = await page.locator('meta[name="description"]').getAttribute("content");
   const show = (await page.locator("#showtime").innerText()).trim();
-  assert.match(meta, /Friday, October 30/);
+  assert.match(meta, /Friday, November 13/);
   assert.match(meta, /Inside Out/);
   assert.match(meta, /The Wild Robot/);
   assert.doesNotMatch(meta, /Saturday|Top Gun|Princess Bride/);
-  assert.equal(show, "6:52 PM");
-  assert.equal(await page.locator("#date-label").innerText(), "Friday, Oct 30");
+  assert.equal(show, "5:42 PM");
+  assert.equal(await page.locator("#date-label").innerText(), "Friday, Nov 13");
   console.log("ok friday copy", show);
   await context.close();
 }
@@ -766,7 +766,7 @@ if (shots) {
   await page.waitForFunction(() => document.getElementById("screen-line").textContent === "RSVPs closed");
   const info = await screen(page);
   const time = (await page.locator("#showtime").innerText()).trim();
-  assert.equal(info.kicker, `Fri, Oct 30 · ${time}`);
+  assert.equal(info.kicker, `Fri, Nov 13 · ${time}`);
   assert.equal(info.line, "RSVPs closed");
   assert.doesNotMatch(`${info.kicker} ${info.line}`, /Sat/);
   console.log("ok closed friday", info.kicker);

@@ -164,7 +164,7 @@ async function guest(browser, totals, now) {
 const browser = await chromium.launch();
 
 {
-  const { context, page } = await guest(browser, mixedTotals, "2026-10-30T21:00:00-05:00");
+  const { context, page } = await guest(browser, mixedTotals, "2026-11-13T19:00:00-06:00");
   await page.waitForFunction(() => document.getElementById("screen-line").textContent === "Inside Out");
   assert.match(await page.locator("#screen-kicker").innerText(), /now showing/i);
   console.log("ok leader on the screen");
@@ -172,7 +172,7 @@ const browser = await chromium.launch();
 }
 
 {
-  const { context, page } = await guest(browser, tiedTotals, "2026-10-30T21:00:00-05:00");
+  const { context, page } = await guest(browser, tiedTotals, "2026-11-13T19:00:00-06:00");
   await page.waitForFunction(() => document.getElementById("screen-line").textContent === "Movie Night");
   console.log("ok tie on the screen");
   await context.close();
